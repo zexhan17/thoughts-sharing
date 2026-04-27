@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+/* Class-based dark mode so the toggle button works */
+@variant dark (&:where(.dark, .dark *));
+
+html, body {
+  @apply bg-white dark:bg-gray-950;
+}
+
+@keyframes slide-from-right {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-from-left {
+  from { opacity: 0; transform: translateX(-40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.92); }
+  60%  { transform: scale(1.03); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.anim-slide-right { animation: slide-from-right 0.22s cubic-bezier(.22,.68,0,1.2) both; }
+.anim-slide-left  { animation: slide-from-left  0.22s cubic-bezier(.22,.68,0,1.2) both; }
+.anim-pop-in      { animation: pop-in           0.25s cubic-bezier(.22,.68,0,1.2) both; }
