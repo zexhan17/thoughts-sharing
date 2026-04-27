@@ -25,7 +25,10 @@ export function decodeShareHash(hash: string): ExportData | null {
   }
 }
 
-// Deduplicate: check if root thought's createdAt already exists
-export function isAlreadyImported(data: ExportData, nodeCreatedAts: Set<string>): boolean {
-  return nodeCreatedAts.has(data.thought.createdAt);
+// Returns the existing root node ID if this thought was already imported
+export function findExistingRootId(data: ExportData, nodes: Record<string, { id: string; parentId: string | null; createdAt: string }>): string | null {
+  const match = Object.values(nodes).find(
+    (n) => n.parentId === null && n.createdAt === data.thought.createdAt
+  );
+  return match?.id ?? null;
 }

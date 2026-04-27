@@ -182,6 +182,38 @@ export function useNodes() {
     [nodes, persist]
   );
 
+  // Delete existing subtree and replace with updated import
+  const replaceThought = useCallback(
+    (existingRootId: string, data: ExportData): string => {
+      const updated = { ...nodes };
+      const queue = [existingRootId];
+      while (queue.length > 0) {
+        const current = queue.pop()!;
+        for (const n of Object.values(updated)) {
+          if (n.parentId === current) queue.push(n.id);
+        }
+        delete updated[current];
+      }
+      function insertTree(exported: ExportedNode, parent: string | null): string {
+        const id = generateId();
+        updated[id] = {
+          id,
+          title: exported.title,
+          content: exported.content,
+          parentId: parent,
+          createdAt: exported.createdAt,
+          isRead: false,
+        };
+        for (const child of exported.children) insertTree(child, id);
+        return id;
+      }
+      const newRootId = insertTree(data.thought, null);
+      persist(updated);
+      return newRootId;
+    },
+    [nodes, persist]
+  );
+
   return {
     nodes,
     hydrated,
@@ -195,5 +227,6 @@ export function useNodes() {
     getAncestors,
     exportThought,
     importThought,
+    replaceThought,
   };
 }

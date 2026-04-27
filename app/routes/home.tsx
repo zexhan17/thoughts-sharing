@@ -5,7 +5,7 @@ import { NodeDialog } from "../diary/NodeDialog";
 import { DeleteDialog } from "../diary/DeleteDialog";
 import { NodeDetail } from "../diary/NodeDetail";
 import { ReadMode } from "../diary/ReadMode";
-import { buildShareUrl, decodeShareHash, isAlreadyImported } from "../diary/share";
+import { buildShareUrl, decodeShareHash, findExistingRootId } from "../diary/share";
 import type { ExportData } from "../diary/types";
 import type { Route } from "./+types/home";
 
@@ -61,6 +61,7 @@ export default function Home() {
     getAncestors,
     exportThought,
     importThought,
+    replaceThought,
   } = useNodes();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -70,6 +71,7 @@ export default function Home() {
   const [isDark, setIsDark] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const [shareConflict, setShareConflict] = useState<{ data: ExportData; existingRootId: string } | null>(null);
 
   useEffect(() => {
     if (window.innerWidth >= 768) setSidebarOpen(true);
@@ -82,16 +84,33 @@ export default function Home() {
     const shared = decodeShareHash(window.location.hash);
     if (!shared) return;
     window.location.hash = "";
-    const createdAts = new Set(Object.values(nodes).map((n) => n.createdAt));
-    if (isAlreadyImported(shared, createdAts)) {
-      setShareToast(`"${shared.thought.title}" is already in your thoughts`);
+    const existingRootId = findExistingRootId(shared, nodes);
+    if (existingRootId) {
+      setShareConflict({ data: shared, existingRootId });
     } else {
       const id = importThought(shared, null);
       setSelectedId(id);
       setShareToast(`"${shared.thought.title}" saved to your thoughts`);
+      setTimeout(() => setShareToast(null), 4000);
     }
-    setTimeout(() => setShareToast(null), 4000);
   }, [hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function resolveShareConflict(action: "replace" | "keep-both" | "dismiss") {
+    if (!shareConflict) return;
+    const { data, existingRootId } = shareConflict;
+    setShareConflict(null);
+    if (action === "replace") {
+      const id = replaceThought(existingRootId, data);
+      setSelectedId(id);
+      setShareToast(`"${data.thought.title}" updated`);
+      setTimeout(() => setShareToast(null), 4000);
+    } else if (action === "keep-both") {
+      const id = importThought(data, null);
+      setSelectedId(id);
+      setShareToast(`"${data.thought.title}" saved as a new copy`);
+      setTimeout(() => setShareToast(null), 4000);
+    }
+  }
 
   function toggleDark() {
     setIsDark((d) => {
@@ -303,6 +322,35 @@ export default function Home() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
             {shareToast}
+          </div>
+        )}
+
+        {/* Share conflict banner */}
+        {shareConflict && (
+          <div className="mx-3 sm:mx-4 mt-3 px-4 py-3 bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-700 rounded-xl">
+            <p className="text-sm font-medium text-violet-800 dark:text-violet-200 mb-2.5">
+              <span className="font-semibold">&quot;{shareConflict.data.thought.title}&quot;</span> has updates — you already have this thought.
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => resolveShareConflict("replace")}
+                className="px-3 py-1.5 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors"
+              >
+                Replace with update
+              </button>
+              <button
+                onClick={() => resolveShareConflict("keep-both")}
+                className="px-3 py-1.5 text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/50 hover:bg-violet-200 dark:hover:bg-violet-900 rounded-lg transition-colors"
+              >
+                Keep both
+              </button>
+              <button
+                onClick={() => resolveShareConflict("dismiss")}
+                className="px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
         )}
 
