@@ -66,14 +66,14 @@ function NoteNode({
         {/* Ancestor vertical lines */}
         {parentLines.map((show, i) => (
           <div key={i} className="shrink-0 relative" style={{ width: 20 }}>
-            {show && <div className="absolute left-[9px] top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700" />}
+            {show && <div className="absolute left-2.25 top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700" />}
           </div>
         ))}
 
         {/* Branch connector */}
         {depth > 0 && (
           <div className="shrink-0 relative" style={{ width: 20 }}>
-            <div className="absolute left-[9px] w-px bg-gray-200 dark:bg-gray-700"
+            <div className="absolute left-2.25 w-px bg-gray-200 dark:bg-gray-700"
               style={{ top: 0, height: isLast ? "1.1rem" : "100%" }} />
             <div className="absolute bg-gray-200 dark:bg-gray-700"
               style={{ left: 9, top: "1.1rem", width: 11, height: 1 }} />
@@ -85,7 +85,7 @@ function NoteNode({
           onClick={() => hasChildren && setExpanded((v) => !v)}
           className={[
             "shrink-0 flex items-center justify-center rounded mr-0.5",
-            "w-5 h-[1.75rem]",
+            "w-5 h-7",
             hasChildren
               ? "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer"
               : "cursor-default",
@@ -137,9 +137,9 @@ function NoteNode({
           ) : (
             <button
               onClick={() => onEdit(node.id)}
-              className="w-full text-left px-2 py-1 rounded-md text-sm leading-snug text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="w-full text-left px-2 py-1 rounded-md text-sm leading-relaxed text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors whitespace-pre-wrap wrap-break-word"
             >
-              {label || <span className="italic text-gray-300 dark:text-gray-600">Empty note</span>}
+              {node.content || <span className="italic text-gray-300 dark:text-gray-600">Empty note</span>}
             </button>
           )}
         </div>
