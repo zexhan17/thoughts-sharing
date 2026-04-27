@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNodes } from "../diary/useNodes";
 import { NoteTree, firstLine } from "../diary/NoteTree";
+import { MapView } from "../diary/MapView";
 import { buildShareUrl, decodeShareHash, findExistingRootId } from "../diary/share";
 import type { Route } from "./+types/home";
 
@@ -16,6 +17,7 @@ export default function Home() {
 
   const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
   const [initialEditId, setInitialEditId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"tree" | "map">("tree");
   const [isDark, setIsDark] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -255,9 +257,44 @@ export default function Home() {
           </button>
         </header>
 
-        {/* Share toast */}
+        {/* View toggle + share toast */}
+        {selectedRootId && nodes[selectedRootId] && (
+          <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-1">
+            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode("tree")}
+                title="Tree view"
+                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  viewMode === "tree"
+                    ? "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10M4 18h7" />
+                </svg>
+                Tree
+              </button>
+              <button
+                onClick={() => setViewMode("map")}
+                title="Map view"
+                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  viewMode === "map"
+                    ? "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Map
+              </button>
+            </div>
+          </div>
+        )}
+
         {shareToast && (
-          <div className="mx-4 mt-3 px-4 py-2.5 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 text-sm rounded-xl flex items-center gap-2 shrink-0">
+          <div className="mx-4 mt-2 px-4 py-2.5 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 text-sm rounded-xl flex items-center gap-2 shrink-0">
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
@@ -265,17 +302,35 @@ export default function Home() {
           </div>
         )}
 
-        {/* Tree or empty state */}
+        {/* Tree / Map / empty state */}
         {selectedRootId && nodes[selectedRootId] ? (
-          <NoteTree
-            key={selectedRootId}
-            rootId={selectedRootId}
-            nodes={nodes}
-            initialEditId={initialEditId}
-            onUpdate={handleUpdateNode}
-            onCreateChild={handleCreateChild}
-            onDelete={handleDeleteNode}
-          />
+          viewMode === "map" ? (
+            <MapView
+              key={selectedRootId}
+              nodesMap={Object.fromEntries(
+                Object.entries(nodes).filter(([, n]) => {
+                  // include only nodes in the selected root's subtree
+                  let cur: typeof n | undefined = n;
+                  while (cur) {
+                    if (cur.id === selectedRootId) return true;
+                    cur = cur.parentId ? nodes[cur.parentId] : undefined;
+                  }
+                  return false;
+                })
+              )}
+              onUpdate={handleUpdateNode}
+            />
+          ) : (
+            <NoteTree
+              key={selectedRootId}
+              rootId={selectedRootId}
+              nodes={nodes}
+              initialEditId={initialEditId}
+              onUpdate={handleUpdateNode}
+              onCreateChild={handleCreateChild}
+              onDelete={handleDeleteNode}
+            />
+          )
         ) : (
           <div className="flex-1 flex items-center justify-center text-center px-6">
             <div>
