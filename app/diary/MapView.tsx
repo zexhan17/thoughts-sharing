@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DiaryNode, NodesMap } from "./types";
 import { firstLine } from "./NoteTree";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 // ── Layout ──────────────────────────────────────────────────────────────────
 const R = 28;
@@ -80,22 +81,7 @@ export function MapView({ nodesMap, onUpdate, onCreateChild, onDelete }: MapView
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelEditing, setPanelEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  function handleDeleteClick() {
-    setConfirmingDelete(true);
-    clearTimeout(confirmTimer.current);
-    confirmTimer.current = setTimeout(() => setConfirmingDelete(false), 3000);
-  }
-  function handleConfirmDelete() {
-    clearTimeout(confirmTimer.current);
-    handleDelete();
-  }
-  function handleCancelDeleteConfirm() {
-    clearTimeout(confirmTimer.current);
-    setConfirmingDelete(false);
-  }
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const drag = useRef(false);
   const last = useRef({ x: 0, y: 0 });
@@ -186,8 +172,7 @@ export function MapView({ nodesMap, onUpdate, onCreateChild, onDelete }: MapView
     if (selectedId === id) return;
     setSelectedId(id);
     setPanelEditing(false);
-    setConfirmingDelete(false);
-    clearTimeout(confirmTimer.current);
+    setShowDeleteDialog(false);
     setDraft(nodesMap[id]?.content ?? "");
   }
 
@@ -355,29 +340,15 @@ export function MapView({ nodesMap, onUpdate, onCreateChild, onDelete }: MapView
                     </svg>
                     Child
                   </button>
-                  {confirmingDelete ? (
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-red-500 dark:text-red-400 whitespace-nowrap">Delete?</span>
-                      <button
-                        onClick={handleConfirmDelete}
-                        className="px-2 py-1 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
-                      >Yes</button>
-                      <button
-                        onClick={handleCancelDeleteConfirm}
-                        className="px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg transition-colors"
-                      >No</button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handleDeleteClick}
-                      title="Delete note"
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setShowDeleteDialog(true)}
+                    title="Delete note"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
                 </>
               )}
               {panelEditing && (
@@ -428,6 +399,14 @@ export function MapView({ nodesMap, onUpdate, onCreateChild, onDelete }: MapView
             )}
           </div>
         </div>
+      )}
+
+      {showDeleteDialog && selectedId && (
+        <ConfirmDialog
+          message="Delete this note?"
+          onConfirm={() => { handleDelete(); setShowDeleteDialog(false); }}
+          onCancel={() => setShowDeleteDialog(false)}
+        />
       )}
     </div>
   );
