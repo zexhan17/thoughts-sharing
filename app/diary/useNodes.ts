@@ -11,7 +11,23 @@ function loadFromStorage(): NodesMap {
   if (typeof window === "undefined") return {};
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, any>;
+    const result: NodesMap = {};
+    for (const [id, n] of Object.entries(parsed)) {
+      // Migrate old format: separate title + content → single content field
+      let content: string = n.content ?? "";
+      if ("title" in n && typeof n.title === "string" && n.title) {
+        content = n.title + (content ? "\n\n" + content : "");
+      }
+      result[id] = {
+        id: n.id ?? id,
+        content,
+        parentId: n.parentId ?? null,
+        createdAt: n.createdAt ?? new Date().toISOString(),
+      };
+    }
+    return result;
   } catch {
     return {};
   }
@@ -23,7 +39,6 @@ function saveToStorage(nodes: NodesMap) {
 }
 
 export function useNodes() {
-  // Start empty to match SSR; hydrate from localStorage after mount
   const [nodes, setNodes] = useState<NodesMap>({});
   const [hydrated, setHydrated] = useState(false);
 
@@ -39,33 +54,24 @@ export function useNodes() {
   }, []);
 
   const createNode = useCallback(
-    (title: string, content: string, parentId: string | null) => {
+    (content: string, parentId: string | null): string => {
       const id = generateId();
-      const node: DiaryNode = {
-        id,
-        title,
-        content,
-        parentId,
-        createdAt: new Date().toISOString(),
-        isRead: false,
-      };
-      persist({ ...nodes, [id]: node });
+      persist({ ...nodes, [id]: { id, content, parentId, createdAt: new Date().toISOString() } });
       return id;
     },
     [nodes, persist]
   );
 
   const updateNode = useCallback(
-    (id: string, title: string, content: string) => {
+    (id: string, content: string) => {
       if (!nodes[id]) return;
-      persist({ ...nodes, [id]: { ...nodes[id], title, content } });
+      persist({ ...nodes, [id]: { ...nodes[id], content } });
     },
     [nodes, persist]
   );
 
   const deleteNode = useCallback(
     (id: string) => {
-      // Collect all descendant IDs to delete them too
       const toDelete = new Set<string>();
       const queue = [id];
       while (queue.length > 0) {
@@ -82,68 +88,6 @@ export function useNodes() {
     [nodes, persist]
   );
 
-  const markRead = useCallback(
-    (id: string, isRead: boolean) => {
-      if (!nodes[id]) return;
-      persist({ ...nodes, [id]: { ...nodes[id], isRead } });
-    },
-    [nodes, persist]
-  );
-
-  const getRoots = useCallback((): DiaryNode[] => {
-    return Object.values(nodes)
-      .filter((n) => n.parentId === null)
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  }, [nodes]);
-
-  const getChildren = useCallback(
-    (parentId: string): DiaryNode[] => {
-      return Object.values(nodes)
-        .filter((n) => n.parentId === parentId)
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    },
-    [nodes]
-  );
-
-  // Depth-first pre-order traversal for read mode.
-  // If rootId is provided, traverses only that subtree (inclusive).
-  const getReadOrder = useCallback((rootId?: string): DiaryNode[] => {
-    const result: DiaryNode[] = [];
-    function dfs(id: string) {
-      const node = nodes[id];
-      if (!node) return;
-      result.push(node);
-      Object.values(nodes)
-        .filter((n) => n.parentId === id)
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-        .forEach((child) => dfs(child.id));
-    }
-    if (rootId) {
-      dfs(rootId);
-    } else {
-      Object.values(nodes)
-        .filter((n) => n.parentId === null)
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-        .forEach((root) => dfs(root.id));
-    }
-    return result;
-  }, [nodes]);
-
-  const getAncestors = useCallback(
-    (id: string): DiaryNode[] => {
-      const ancestors: DiaryNode[] = [];
-      let current = nodes[id];
-      while (current?.parentId) {
-        const parent = nodes[current.parentId];
-        if (!parent) break;
-        ancestors.unshift(parent);
-        current = parent;
-      }
-      return ancestors;
-    },
-    [nodes]
-  );
-
   const exportThought = useCallback(
     (id: string): ExportData => {
       function buildTree(nodeId: string): ExportedNode {
@@ -152,9 +96,9 @@ export function useNodes() {
           .filter((n) => n.parentId === nodeId)
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
           .map((c) => buildTree(c.id));
-        return { title: node.title, content: node.content, createdAt: node.createdAt, children };
+        return { content: node.content, createdAt: node.createdAt, children };
       }
-      return { version: 1, exportedAt: new Date().toISOString(), thought: buildTree(id) };
+      return { version: 2, exportedAt: new Date().toISOString(), thought: buildTree(id) };
     },
     [nodes]
   );
@@ -164,14 +108,7 @@ export function useNodes() {
       const newNodes = { ...nodes };
       function insertTree(exported: ExportedNode, parent: string | null): string {
         const id = generateId();
-        newNodes[id] = {
-          id,
-          title: exported.title,
-          content: exported.content,
-          parentId: parent,
-          createdAt: exported.createdAt,
-          isRead: false,
-        };
+        newNodes[id] = { id, content: exported.content, parentId: parent, createdAt: exported.createdAt };
         for (const child of exported.children) insertTree(child, id);
         return id;
       }
@@ -182,7 +119,6 @@ export function useNodes() {
     [nodes, persist]
   );
 
-  // Delete existing subtree and replace with updated import
   const replaceThought = useCallback(
     (existingRootId: string, data: ExportData): string => {
       const updated = { ...nodes };
@@ -196,14 +132,7 @@ export function useNodes() {
       }
       function insertTree(exported: ExportedNode, parent: string | null): string {
         const id = generateId();
-        updated[id] = {
-          id,
-          title: exported.title,
-          content: exported.content,
-          parentId: parent,
-          createdAt: exported.createdAt,
-          isRead: false,
-        };
+        updated[id] = { id, content: exported.content, parentId: parent, createdAt: exported.createdAt };
         for (const child of exported.children) insertTree(child, id);
         return id;
       }
@@ -214,19 +143,5 @@ export function useNodes() {
     [nodes, persist]
   );
 
-  return {
-    nodes,
-    hydrated,
-    createNode,
-    updateNode,
-    deleteNode,
-    markRead,
-    getRoots,
-    getChildren,
-    getReadOrder,
-    getAncestors,
-    exportThought,
-    importThought,
-    replaceThought,
-  };
+  return { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, replaceThought };
 }

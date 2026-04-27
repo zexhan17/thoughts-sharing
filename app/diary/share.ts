@@ -18,7 +18,7 @@ export function decodeShareHash(hash: string): ExportData | null {
     const json = decompressFromEncodedURIComponent(encoded);
     if (!json) return null;
     const data = JSON.parse(json) as ExportData;
-    if (data.version !== 1 || !data.thought) return null;
+    if (data.version !== 2 || !data.thought) return null;
     return data;
   } catch {
     return null;
