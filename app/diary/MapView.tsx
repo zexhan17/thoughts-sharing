@@ -70,9 +70,11 @@ function abbr(content: string): string {
 interface MapViewProps {
   nodesMap: NodesMap;
   onUpdate: (id: string, content: string) => void;
+  onCreateChild: (parentId: string) => string;
+  onDelete: (id: string) => void;
 }
 
-export function MapView({ nodesMap, onUpdate }: MapViewProps) {
+export function MapView({ nodesMap, onUpdate, onCreateChild, onDelete }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [tf, setTf] = useState({ x: 0, y: 0, scale: 1 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -187,7 +189,38 @@ export function MapView({ nodesMap, onUpdate }: MapViewProps) {
 
   function handleSave() {
     if (!selectedId) return;
-    if (draft.trim()) onUpdate(selectedId, draft.trim());
+    if (draft.trim()) {
+      onUpdate(selectedId, draft.trim());
+      setPanelEditing(false);
+    } else {
+      onDelete(selectedId);
+      setSelectedId(null);
+      setPanelEditing(false);
+    }
+  }
+
+  function handleCancelEdit() {
+    if (!selectedId) return;
+    const node = nodesMap[selectedId];
+    if (node && !node.content.trim()) {
+      onDelete(selectedId);
+      setSelectedId(null);
+    }
+    setPanelEditing(false);
+  }
+
+  function handleAddChild() {
+    if (!selectedId) return;
+    const newId = onCreateChild(selectedId);
+    setSelectedId(newId);
+    setPanelEditing(true);
+    setDraft("");
+  }
+
+  function handleDelete() {
+    if (!selectedId) return;
+    onDelete(selectedId);
+    setSelectedId(null);
     setPanelEditing(false);
   }
 
@@ -284,15 +317,36 @@ export function MapView({ nodesMap, onUpdate }: MapViewProps) {
             </p>
             <div className="flex items-center gap-2">
               {!panelEditing && (
-                <button
-                  onClick={() => { setPanelEditing(true); setDraft(selectedNode.content); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 rounded-lg transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Edit
-                </button>
+                <>
+                  <button
+                    onClick={() => { setPanelEditing(true); setDraft(selectedNode.content); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 rounded-lg transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit
+                  </button>
+                  <button
+                    onClick={handleAddChild}
+                    title="Add child note"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 rounded-lg transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Child
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    title="Delete note"
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </>
               )}
               {panelEditing && (
                 <>
@@ -303,7 +357,7 @@ export function MapView({ nodesMap, onUpdate }: MapViewProps) {
                     Save
                   </button>
                   <button
-                    onClick={() => setPanelEditing(false)}
+                    onClick={handleCancelEdit}
                     className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg transition-colors"
                   >
                     Cancel
@@ -329,7 +383,7 @@ export function MapView({ nodesMap, onUpdate }: MapViewProps) {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Escape") setPanelEditing(false);
+                  if (e.key === "Escape") handleCancelEdit();
                   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleSave();
                 }}
                 placeholder="Write your note…"

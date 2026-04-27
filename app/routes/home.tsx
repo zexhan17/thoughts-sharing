@@ -319,6 +319,8 @@ export default function Home() {
                 })
               )}
               onUpdate={handleUpdateNode}
+              onCreateChild={handleCreateChild}
+              onDelete={handleDeleteNode}
             />
           ) : (
             <NoteTree
