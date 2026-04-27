@@ -5,6 +5,7 @@ import { NodeDialog } from "../diary/NodeDialog";
 import { DeleteDialog } from "../diary/DeleteDialog";
 import { NodeDetail } from "../diary/NodeDetail";
 import { ReadMode } from "../diary/ReadMode";
+import { buildShareUrl, decodeShareHash, isAlreadyImported } from "../diary/share";
 import type { ExportData } from "../diary/types";
 import type { Route } from "./+types/home";
 
@@ -51,6 +52,7 @@ function readFile(file: File): Promise<ExportData> {
 export default function Home() {
   const {
     nodes,
+    hydrated,
     createNode,
     updateNode,
     deleteNode,
@@ -64,15 +66,32 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [readMode, setReadMode] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false); // closed by default on mobile
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [shareToast, setShareToast] = useState<string | null>(null);
 
   useEffect(() => {
-    // On desktop default to open; on mobile keep closed
     if (window.innerWidth >= 768) setSidebarOpen(true);
     setIsDark(document.documentElement.classList.contains("dark"));
   }, []);
+
+  // Auto-import a shared thought from URL hash, runs once after localStorage hydrates
+  useEffect(() => {
+    if (!hydrated) return;
+    const shared = decodeShareHash(window.location.hash);
+    if (!shared) return;
+    window.location.hash = "";
+    const createdAts = new Set(Object.values(nodes).map((n) => n.createdAt));
+    if (isAlreadyImported(shared, createdAts)) {
+      setShareToast(`"${shared.thought.title}" is already in your thoughts`);
+    } else {
+      const id = importThought(shared, null);
+      setSelectedId(id);
+      setShareToast(`"${shared.thought.title}" saved to your thoughts`);
+    }
+    setTimeout(() => setShareToast(null), 4000);
+  }, [hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleDark() {
     setIsDark((d) => {
@@ -116,6 +135,11 @@ export default function Home() {
     const data = exportThought(nodeId);
     const slug = nodes[nodeId]?.title.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9-]/g, "").toLowerCase() ?? "thought";
     downloadJSON(data, `${slug}.json`);
+  }
+
+  function handleShare(nodeId: string): string {
+    const data = exportThought(nodeId);
+    return buildShareUrl(data);
   }
 
   async function handleImport(file: File, parentId: string | null) {
@@ -272,6 +296,16 @@ export default function Home() {
           </div>
         )}
 
+        {/* Share toast */}
+        {shareToast && (
+          <div className="mx-3 sm:mx-4 mt-3 px-4 py-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 text-sm rounded-xl flex items-center gap-2">
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            {shareToast}
+          </div>
+        )}
+
         {/* Content */}
         <main className="flex-1 overflow-hidden">
           {selectedNode ? (
@@ -283,6 +317,7 @@ export default function Home() {
               onDelete={() => openDelete(selectedNode.id)}
               onAddChild={() => openAddChild(selectedNode.id)}
               onExport={() => handleExport(selectedNode.id)}
+              onShare={() => handleShare(selectedNode.id)}
               onImportChild={(file) => handleImport(file, selectedNode.id)}
               onSelectNode={handleSelectNode}
             />

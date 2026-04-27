@@ -25,10 +25,12 @@ function saveToStorage(nodes: NodesMap) {
 export function useNodes() {
   // Start empty to match SSR; hydrate from localStorage after mount
   const [nodes, setNodes] = useState<NodesMap>({});
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     const stored = loadFromStorage();
     if (Object.keys(stored).length > 0) setNodes(stored);
+    setHydrated(true);
   }, []);
 
   const persist = useCallback((updated: NodesMap) => {
@@ -182,6 +184,7 @@ export function useNodes() {
 
   return {
     nodes,
+    hydrated,
     createNode,
     updateNode,
     deleteNode,
