@@ -71,14 +71,14 @@ export default function Home() {
   const [isDark, setIsDark] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [shareToast, setShareToast] = useState<string | null>(null);
-  const [shareConflict, setShareConflict] = useState<{ data: ExportData; existingRootId: string } | null>(null);
 
   useEffect(() => {
     if (window.innerWidth >= 768) setSidebarOpen(true);
     setIsDark(document.documentElement.classList.contains("dark"));
   }, []);
 
-  // Auto-import a shared thought from URL hash, runs once after localStorage hydrates
+  // Auto-import (or auto-update) a shared thought from URL hash,
+  // runs once after localStorage hydrates
   useEffect(() => {
     if (!hydrated) return;
     const shared = decodeShareHash(window.location.hash);
@@ -86,31 +86,16 @@ export default function Home() {
     window.location.hash = "";
     const existingRootId = findExistingRootId(shared, nodes);
     if (existingRootId) {
-      setShareConflict({ data: shared, existingRootId });
+      const id = replaceThought(existingRootId, shared);
+      setSelectedId(id);
+      setShareToast(`"${shared.thought.title}" updated`);
     } else {
       const id = importThought(shared, null);
       setSelectedId(id);
       setShareToast(`"${shared.thought.title}" saved to your thoughts`);
-      setTimeout(() => setShareToast(null), 4000);
     }
+    setTimeout(() => setShareToast(null), 4000);
   }, [hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function resolveShareConflict(action: "replace" | "keep-both" | "dismiss") {
-    if (!shareConflict) return;
-    const { data, existingRootId } = shareConflict;
-    setShareConflict(null);
-    if (action === "replace") {
-      const id = replaceThought(existingRootId, data);
-      setSelectedId(id);
-      setShareToast(`"${data.thought.title}" updated`);
-      setTimeout(() => setShareToast(null), 4000);
-    } else if (action === "keep-both") {
-      const id = importThought(data, null);
-      setSelectedId(id);
-      setShareToast(`"${data.thought.title}" saved as a new copy`);
-      setTimeout(() => setShareToast(null), 4000);
-    }
-  }
 
   function toggleDark() {
     setIsDark((d) => {
@@ -326,33 +311,6 @@ export default function Home() {
         )}
 
         {/* Share conflict banner */}
-        {shareConflict && (
-          <div className="mx-3 sm:mx-4 mt-3 px-4 py-3 bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-700 rounded-xl">
-            <p className="text-sm font-medium text-violet-800 dark:text-violet-200 mb-2.5">
-              <span className="font-semibold">&quot;{shareConflict.data.thought.title}&quot;</span> has updates — you already have this thought.
-            </p>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => resolveShareConflict("replace")}
-                className="px-3 py-1.5 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors"
-              >
-                Replace with update
-              </button>
-              <button
-                onClick={() => resolveShareConflict("keep-both")}
-                className="px-3 py-1.5 text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-900/50 hover:bg-violet-200 dark:hover:bg-violet-900 rounded-lg transition-colors"
-              >
-                Keep both
-              </button>
-              <button
-                onClick={() => resolveShareConflict("dismiss")}
-                className="px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Content */}
         <main className="flex-1 overflow-hidden">
