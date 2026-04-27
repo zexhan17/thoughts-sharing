@@ -194,7 +194,7 @@ export function TreeView({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+      <div className="px-4 py-4.5 border-b border-gray-100 dark:border-gray-800">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             Thoughts
