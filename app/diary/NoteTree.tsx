@@ -26,8 +26,24 @@ function NoteNode({
 }: NodeProps) {
   const [expanded, setExpanded] = useState(true);
   const [draft, setDraft] = useState(node.content);
+  const [confirming, setConfirming] = useState(false);
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const isEditing = editingId === node.id;
+
+  function handleDeleteClick() {
+    setConfirming(true);
+    clearTimeout(confirmTimer.current);
+    confirmTimer.current = setTimeout(() => setConfirming(false), 3000);
+  }
+  function handleConfirmDelete() {
+    clearTimeout(confirmTimer.current);
+    onDelete(node.id);
+  }
+  function handleCancelDelete() {
+    clearTimeout(confirmTimer.current);
+    setConfirming(false);
+  }
 
   const children = Object.values(nodes)
     .filter((n) => n.parentId === node.id)
@@ -144,9 +160,9 @@ function NoteNode({
           )}
         </div>
 
-        {/* Hover actions */}
+        {/* Actions — always visible on mobile, hover-only on desktop */}
         {!isEditing && (
-          <div className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-start mt-0.5">
+          <div className="shrink-0 flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity self-start mt-0.5">
             <button
               onClick={() => onAddChild(node.id)}
               title="Add child note"
@@ -156,15 +172,31 @@ function NoteNode({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
             </button>
-            <button
-              onClick={() => onDelete(node.id)}
-              title="Delete"
-              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
+            {confirming ? (
+              <div className="flex items-center gap-0.5">
+                <span className="text-xs text-red-500 dark:text-red-400 px-1 whitespace-nowrap">Delete?</span>
+                <button
+                  onClick={handleConfirmDelete}
+                  title="Confirm delete"
+                  className="w-6 h-6 flex items-center justify-center rounded text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors font-bold text-sm"
+                >✓</button>
+                <button
+                  onClick={handleCancelDelete}
+                  title="Cancel"
+                  className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm"
+                >✕</button>
+              </div>
+            ) : (
+              <button
+                onClick={handleDeleteClick}
+                title="Delete"
+                className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
           </div>
         )}
       </div>
