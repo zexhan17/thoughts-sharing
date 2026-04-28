@@ -298,7 +298,10 @@ export default function Home() {
                         : "text-gray-700 dark:text-gray-300"
                     }`}
                   >
-                    {firstLine(root.content) || <span className="italic text-gray-400 dark:text-gray-600">Untitled</span>}
+                    {locked
+                      ? <span className="italic text-amber-500 dark:text-amber-400">Locked</span>
+                      : firstLine(root.content) || <span className="italic text-gray-400 dark:text-gray-600">Untitled</span>
+                    }
                   </button>
                   <button
                     onClick={() => handleCopyShare(root.id)}
@@ -361,7 +364,7 @@ export default function Home() {
           </button>
           <span className="text-sm font-semibold text-gray-800 dark:text-gray-100 flex-1 truncate">
             {selectedRootId && nodes[selectedRootId]
-              ? firstLine(nodes[selectedRootId].content) || "Untitled"
+              ? isLocked(selectedRootId) ? "Locked" : firstLine(nodes[selectedRootId].content) || "Untitled"
               : "Thought Tree"}
           </span>
           <button
