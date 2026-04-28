@@ -306,9 +306,9 @@ export default function Home() {
                   <button
                     onClick={() => handleCopyShare(root.id)}
                     title="Copy share link"
-                    className={`shrink-0 w-6 h-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 transition-colors ${
+                    className={`shrink-0 w-6 h-6 flex items-center justify-center rounded md:opacity-0 md:group-hover:opacity-100 transition-colors ${
                       copiedId === root.id
-                        ? "text-green-500 opacity-100"
+                        ? "text-green-500 md:opacity-100"
                         : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                     }`}
                   >
@@ -329,7 +329,7 @@ export default function Home() {
                     className={`shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors ${
                       locked
                         ? "opacity-100 text-amber-500 hover:text-amber-600"
-                        : "opacity-0 group-hover:opacity-100 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                        : "md:opacity-0 md:group-hover:opacity-100 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                     }`}
                   >
                     {locked ? (
