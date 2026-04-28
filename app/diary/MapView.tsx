@@ -70,12 +70,13 @@ function abbr(content: string): string {
 // ── Component ───────────────────────────────────────────────────────────────
 interface MapViewProps {
   nodesMap: NodesMap;
+  isDark: boolean;
   onUpdate: (id: string, content: string) => void;
   onCreateChild: (parentId: string) => string;
   onDelete: (id: string) => void;
 }
 
-export function MapView({ nodesMap, onUpdate, onCreateChild, onDelete }: MapViewProps) {
+export function MapView({ nodesMap, isDark, onUpdate, onCreateChild, onDelete }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [tf, setTf] = useState({ x: 0, y: 0, scale: 1 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -229,8 +230,34 @@ export function MapView({ nodesMap, onUpdate, onCreateChild, onDelete }: MapView
 
   const selectedNode: DiaryNode | null = selectedId ? (nodesMap[selectedId] ?? null) : null;
 
+  const th = isDark ? {
+    canvasBg: "bg-slate-950",
+    edge: "#334155",
+    hexFill: "#1e1b4b",
+    hexFillSel: "#2e1065",
+    hexStroke: "#6d28d9",
+    hexStrokeSel: "#a78bfa",
+    glowStroke: "#a78bfa",
+    txtFill: "#a78bfa",
+    txtFillSel: "#ddd6fe",
+    zoomBtn: "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700",
+    hint: "text-slate-500 bg-slate-900/80 border-slate-800",
+  } : {
+    canvasBg: "bg-gray-50",
+    edge: "#d1d5db",
+    hexFill: "#ede9fe",
+    hexFillSel: "#ddd6fe",
+    hexStroke: "#7c3aed",
+    hexStrokeSel: "#6d28d9",
+    glowStroke: "#6d28d9",
+    txtFill: "#5b21b6",
+    txtFillSel: "#3730a3",
+    zoomBtn: "bg-white hover:bg-gray-100 text-gray-500 hover:text-gray-800 border-gray-200 shadow-sm",
+    hint: "text-gray-400 bg-white/90 border-gray-200",
+  };
+
   return (
-    <div ref={containerRef} className="flex-1 flex flex-col overflow-hidden relative bg-slate-950">
+    <div ref={containerRef} className={`flex-1 flex flex-col overflow-hidden relative ${th.canvasBg}`}>
 
       {/* Zoom controls */}
       <div className="absolute top-3 right-3 z-10 flex flex-col gap-1">
@@ -240,7 +267,7 @@ export function MapView({ nodesMap, onUpdate, onCreateChild, onDelete }: MapView
           { label: "⊡", action: fitToScreen },
         ].map(({ label, action }) => (
           <button key={label} onClick={action}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-sm font-bold transition-colors border border-slate-700">
+            className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-bold transition-colors border ${th.zoomBtn}`}>
             {label}
           </button>
         ))}
@@ -260,7 +287,7 @@ export function MapView({ nodesMap, onUpdate, onCreateChild, onDelete }: MapView
             return (
               <line key={`${e.from}-${e.to}`}
                 x1={f.x} y1={f.y} x2={t.x} y2={t.y}
-                stroke="#334155" strokeWidth={3} strokeLinecap="round" />
+                stroke={th.edge} strokeWidth={3} strokeLinecap="round" />
             );
           })}
 
@@ -270,18 +297,18 @@ export function MapView({ nodesMap, onUpdate, onCreateChild, onDelete }: MapView
             if (!node) return null;
             const isSel = selectedId === ln.id;
 
-            const fill = isSel ? "#2e1065" : "#1e1b4b";
-            const stroke = isSel ? "#a78bfa" : "#6d28d9";
-            const txtFill = isSel ? "#ddd6fe" : "#a78bfa";
+            const fill = isSel ? th.hexFillSel : th.hexFill;
+            const stroke = isSel ? th.hexStrokeSel : th.hexStroke;
+            const txtFill = isSel ? th.txtFillSel : th.txtFill;
 
             return (
               <g key={ln.id} onClick={() => handleNodeClick(ln.id)} className="cursor-pointer">
                 {isSel && (
                   <polygon points={hex(ln.x, ln.y, R + 7)}
-                    fill="none" stroke="#a78bfa" strokeWidth={1.5} opacity={0.4} />
+                    fill="none" stroke={th.glowStroke} strokeWidth={1.5} opacity={0.4} />
                 )}
                 <polygon points={hex(ln.x, ln.y, R)} fill={fill} stroke={stroke} strokeWidth={2.5} />
-                <polygon points={hex(ln.x, ln.y - 2, R * 0.55)} fill="white" opacity={0.04} />
+                <polygon points={hex(ln.x, ln.y - 2, R * 0.55)} fill="white" opacity={isDark ? 0.04 : 0.3} />
                 <text x={ln.x} y={ln.y + 2}
                   textAnchor="middle" dominantBaseline="middle"
                   fill={txtFill} fontSize={8} fontWeight="600">
@@ -296,7 +323,7 @@ export function MapView({ nodesMap, onUpdate, onCreateChild, onDelete }: MapView
       {/* Hint */}
       {!selectedNode && lnodes.length > 0 && (
         <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
-          <span className="text-xs text-slate-500 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-full">
+          <span className={`text-xs border px-3 py-1.5 rounded-full ${th.hint}`}>
             Tap a node to read · Drag to pan · Pinch / scroll to zoom
           </span>
         </div>

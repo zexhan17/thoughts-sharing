@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNodes } from "../diary/useNodes";
 import { NoteTree, firstLine } from "../diary/NoteTree";
 import { MapView } from "../diary/MapView";
+import { PinDialog } from "../diary/PinDialog";
 import { buildShareUrl, decodeShareHash, findExistingRootId } from "../diary/share";
 import type { Route } from "./+types/home";
 
@@ -11,6 +12,16 @@ export function meta({}: Route.MetaArgs) {
     { name: "description", content: "A tree-structured digital notepad" },
   ];
 }
+
+async function hashPin(pin: string, nodeId: string): Promise<string> {
+  const data = new TextEncoder().encode(`${nodeId}:${pin}:diary-lock`);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+const PINS_KEY = "diary-pins";
 
 export default function Home() {
   const { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, replaceThought } = useNodes();
@@ -23,6 +34,13 @@ export default function Home() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  const [pinsMap, setPinsMap] = useState<Record<string, string>>({});
+  const [unlockedIds, setUnlockedIds] = useState<Set<string>>(new Set());
+  const [pinDialog, setPinDialog] = useState<{ id: string; mode: "unlock" | "set" } | null>(null);
+  const [pinError, setPinError] = useState("");
+
+  const prevRootRef = useRef<string | null>(null);
+
   const roots = Object.values(nodes)
     .filter((n) => n.parentId === null)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -31,6 +49,40 @@ export default function Home() {
     setIsDark(document.documentElement.classList.contains("dark"));
     if (window.innerWidth < 768) setSidebarOpen(false);
   }, []);
+
+  // Load pins from storage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PINS_KEY);
+      if (raw) setPinsMap(JSON.parse(raw));
+    } catch {}
+  }, []);
+
+  // Auto-lock on tab hide / minimize
+  useEffect(() => {
+    function onVis() {
+      if (document.hidden) setUnlockedIds(new Set());
+    }
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pagehide", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pagehide", onVis);
+    };
+  }, []);
+
+  // Auto-lock previous thought on deselect
+  useEffect(() => {
+    const prev = prevRootRef.current;
+    if (prev && prev !== selectedRootId) {
+      setUnlockedIds((s) => {
+        const n = new Set(s);
+        n.delete(prev);
+        return n;
+      });
+    }
+    prevRootRef.current = selectedRootId;
+  }, [selectedRootId]);
 
   // Auto-select first root after hydration
   useEffect(() => {
@@ -99,6 +151,13 @@ export default function Home() {
 
   function handleDeleteNode(id: string) {
     deleteNode(id);
+    if (pinsMap[id]) {
+      const next = { ...pinsMap };
+      delete next[id];
+      setPinsMap(next);
+      localStorage.setItem(PINS_KEY, JSON.stringify(next));
+    }
+    setUnlockedIds((s) => { const n = new Set(s); n.delete(id); return n; });
     if (id === selectedRootId) {
       const remaining = Object.values(nodes)
         .filter((n) => n.parentId === null && n.id !== id)
@@ -115,6 +174,42 @@ export default function Home() {
       setTimeout(() => setCopiedId(null), 2000);
     });
   }
+
+  function handleLockClick(e: React.MouseEvent, rootId: string) {
+    e.stopPropagation();
+    if (!pinsMap[rootId]) {
+      setPinError("");
+      setPinDialog({ id: rootId, mode: "set" });
+    } else if (unlockedIds.has(rootId)) {
+      setUnlockedIds((s) => { const n = new Set(s); n.delete(rootId); return n; });
+    } else {
+      setPinError("");
+      setPinDialog({ id: rootId, mode: "unlock" });
+    }
+  }
+
+  async function handlePinConfirm(pin: string) {
+    if (!pinDialog) return;
+    const { id, mode } = pinDialog;
+    setPinError("");
+    if (mode === "set") {
+      const hash = await hashPin(pin, id);
+      const next = { ...pinsMap, [id]: hash };
+      setPinsMap(next);
+      localStorage.setItem(PINS_KEY, JSON.stringify(next));
+      setPinDialog(null);
+    } else {
+      const hash = await hashPin(pin, id);
+      if (hash === pinsMap[id]) {
+        setUnlockedIds((s) => new Set([...s, id]));
+        setPinDialog(null);
+      } else {
+        setPinError("Incorrect PIN");
+      }
+    }
+  }
+
+  const isLocked = (id: string | null) => !!id && !!pinsMap[id] && !unlockedIds.has(id);
 
   return (
     <div className="flex h-dvh bg-white dark:bg-gray-950 overflow-hidden">
@@ -169,7 +264,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Root thought list — titles only */}
+        {/* Root thought list */}
         <div className="flex-1 overflow-y-auto py-1">
           {roots.length === 0 ? (
             <div className="px-4 py-8 text-center">
@@ -184,6 +279,8 @@ export default function Home() {
           ) : (
             roots.map((root) => {
               const isActive = selectedRootId === root.id;
+              const locked = isLocked(root.id);
+              const hasPin = !!pinsMap[root.id];
               return (
                 <div
                   key={root.id}
@@ -219,6 +316,26 @@ export default function Home() {
                     ) : (
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                    )}
+                  </button>
+                  {/* Lock button */}
+                  <button
+                    onClick={(e) => handleLockClick(e, root.id)}
+                    title={hasPin ? (locked ? "Unlock thought" : "Lock thought") : "Set PIN lock"}
+                    className={`shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors ${
+                      locked
+                        ? "opacity-100 text-amber-500 hover:text-amber-600"
+                        : "opacity-0 group-hover:opacity-100 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                    }`}
+                  >
+                    {locked ? (
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
                       </svg>
                     )}
                   </button>
@@ -258,7 +375,7 @@ export default function Home() {
         </header>
 
         {/* View toggle + share toast */}
-        {selectedRootId && nodes[selectedRootId] && (
+        {selectedRootId && nodes[selectedRootId] && !isLocked(selectedRootId) && (
           <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-1">
             <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
               <button
@@ -302,14 +419,32 @@ export default function Home() {
           </div>
         )}
 
-        {/* Tree / Map / empty state */}
+        {/* Tree / Map / locked / empty state */}
         {selectedRootId && nodes[selectedRootId] ? (
-          viewMode === "map" ? (
+          isLocked(selectedRootId) ? (
+            <div className="flex-1 flex items-center justify-center text-center px-6">
+              <div>
+                <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <h2 className="text-base font-semibold text-gray-700 dark:text-gray-200 mb-1">Thought locked</h2>
+                <p className="text-sm text-gray-400 dark:text-gray-500 mb-5">Enter your PIN to view this thought</p>
+                <button
+                  onClick={() => { setPinError(""); setPinDialog({ id: selectedRootId, mode: "unlock" }); }}
+                  className="px-5 py-2.5 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-xl transition-colors"
+                >
+                  Enter PIN
+                </button>
+              </div>
+            </div>
+          ) : viewMode === "map" ? (
             <MapView
               key={selectedRootId}
+              isDark={isDark}
               nodesMap={Object.fromEntries(
                 Object.entries(nodes).filter(([, n]) => {
-                  // include only nodes in the selected root's subtree
                   let cur: typeof n | undefined = n;
                   while (cur) {
                     if (cur.id === selectedRootId) return true;
@@ -361,6 +496,16 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* PIN dialog */}
+      {pinDialog && (
+        <PinDialog
+          mode={pinDialog.mode}
+          externalError={pinDialog.mode === "unlock" ? pinError : undefined}
+          onConfirm={handlePinConfirm}
+          onCancel={() => { setPinDialog(null); setPinError(""); }}
+        />
+      )}
     </div>
   );
 }
