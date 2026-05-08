@@ -52,6 +52,7 @@ interface NodeProps {
   isLast: boolean;
   parentLines: boolean[];
   editingId: string | null;
+  highlightId: string | null;
   childOrders: Record<string, string[]>;
   drag: DragState;
   onEdit: (id: string) => void;
@@ -70,7 +71,7 @@ interface NodeProps {
 
 function NoteNode({
   node, nodes, depth, isLast, parentLines,
-  editingId, childOrders, drag,
+  editingId, highlightId, childOrders, drag,
   onEdit, onSave, onCancel, onAddChild, onDelete,
   onDragStart, onDragOver, onDrop, onDragEnd,
   onTouchDragStart, onTouchDragOver, onTouchDrop,
@@ -81,7 +82,14 @@ function NoteNode({
   const [draft, setDraft] = useState(node.content);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
   const isEditing = editingId === node.id;
+  const isHighlighted = highlightId === node.id;
+
+  useEffect(() => {
+    if (!isHighlighted) return;
+    setTimeout(() => rowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+  }, [isHighlighted]);
 
   const children = getSortedChildren(node.id, nodes, childOrders);
   const hasChildren = children.length > 0;
@@ -141,10 +149,12 @@ function NoteNode({
   return (
     <div>
       <div
+        ref={rowRef}
         data-node-id={node.id}
         data-parent-id={node.parentId ?? "null"}
         className={`flex items-start group relative transition-colors ${isDragging ? "opacity-40" : ""} ${
           isDragOver ? "rounded-md ring-1 ring-violet-400 dark:ring-violet-500 bg-violet-50/50 dark:bg-violet-900/20" : ""
+        } ${isHighlighted ? "rounded-lg ring-2 ring-yellow-400 dark:ring-yellow-500 bg-yellow-50 dark:bg-yellow-900/25" : ""
         } ${depth === 0 ? "sticky bg-white dark:bg-gray-950" : ""}`}
         style={depth === 0 ? { top: 0, zIndex: 10 } : undefined}
         draggable={!isEditing}
@@ -251,7 +261,7 @@ function NoteNode({
           {children.map((child, idx) => (
             <NoteNode key={child.id} node={child} nodes={nodes} depth={depth + 1}
               isLast={idx === children.length - 1} parentLines={[...parentLines, !isLast]}
-              editingId={editingId} childOrders={childOrders} drag={drag}
+              editingId={editingId} highlightId={highlightId} childOrders={childOrders} drag={drag}
               onEdit={onEdit} onSave={onSave} onCancel={onCancel} onAddChild={onAddChild} onDelete={onDelete}
               onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}
               onTouchDragStart={onTouchDragStart} onTouchDragOver={onTouchDragOver} onTouchDrop={onTouchDrop}
@@ -269,16 +279,18 @@ interface NoteTreeProps {
   initialEditId: string | null;
   collapseSignal: number;
   expandSignal: number;
+  scrollToId?: string | null;
   onUpdate: (id: string, content: string) => void;
   onCreateChild: (parentId: string) => string;
   onDelete: (id: string) => void;
 }
 
-export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandSignal, onUpdate, onCreateChild, onDelete }: NoteTreeProps) {
+export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandSignal, scrollToId, onUpdate, onCreateChild, onDelete }: NoteTreeProps) {
   const [editingId, setEditingId] = useState<string | null>(initialEditId);
   const [childOrders, setChildOrders] = useState<Record<string, string[]>>({});
   const [drag, setDrag] = useState<DragState>({ draggedId: null, dragParentId: null, dragOverId: null });
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [highlightId, setHighlightId] = useState<string | null>(null);
 
   useEffect(() => { setChildOrders(loadChildOrders()); }, []);
 
@@ -311,6 +323,27 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
     if (!expandSignal) return;
     setCollapsedIds(new Set());
   }, [expandSignal]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll-to + highlight
+  useEffect(() => {
+    if (!scrollToId) return;
+    // Expand all ancestors so the node is visible
+    const toExpand = new Set<string>();
+    let cur = nodes[scrollToId];
+    while (cur?.parentId) { toExpand.add(cur.parentId); cur = nodes[cur.parentId]; }
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      toExpand.forEach((id) => next.delete(id));
+      return next;
+    });
+    setHighlightId(scrollToId);
+  }, [scrollToId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const t = setTimeout(() => setHighlightId(null), 2500);
+    return () => clearTimeout(t);
+  }, [highlightId]);
 
   const root = nodes[rootId];
   if (!root) return null;
@@ -380,7 +413,7 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
       <div className="h-full overflow-y-auto">
         <div className="p-5 sm:p-8 max-w-2xl">
           <NoteNode node={root} nodes={nodes} depth={0} isLast={true} parentLines={[]}
-            editingId={editingId} childOrders={childOrders} drag={drag}
+            editingId={editingId} highlightId={highlightId} childOrders={childOrders} drag={drag}
             onEdit={setEditingId} onSave={handleSave} onCancel={handleCancel} onAddChild={handleAddChild} onDelete={onDelete}
             onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} onDragEnd={handleDragEnd}
             onTouchDragStart={handleTouchDragStart} onTouchDragOver={handleTouchDragOver} onTouchDrop={handleTouchDrop}

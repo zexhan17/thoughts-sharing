@@ -5,6 +5,8 @@ import { MapView } from "../diary/MapView";
 import { PinDialog } from "../diary/PinDialog";
 import { ConfirmDialog } from "../diary/ConfirmDialog";
 import { buildShareUrl, decodeShareHash, findExistingRootId } from "../diary/share";
+import { SearchDialog } from "../diary/SearchDialog";
+import { SEED_THOUGHTS } from "../diary/seedData";
 import type { Route } from "./+types/home";
 
 export function meta({}: Route.MetaArgs) {
@@ -22,22 +24,10 @@ async function hashPin(pin: string, nodeId: string): Promise<string> {
     .join("");
 }
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  return `${Math.floor(days / 30)}mo ago`;
-}
-
 const PINS_KEY = "diary-pins";
 
 export default function Home() {
-  const { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, replaceThought, undo } = useNodes();
+  const { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, replaceThought, undo, seedThoughts } = useNodes();
 
   const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
   const [initialEditId, setInitialEditId] = useState<string | null>(null);
@@ -46,7 +36,8 @@ export default function Home() {
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  const [scrollToId, setScrollToId] = useState<string | null>(null);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -71,19 +62,6 @@ export default function Home() {
 
   const isLocked = (id: string | null) => !!id && !!pinsMap[id] && !unlockedIds.has(id);
 
-  function countDescendants(rootId: string): number {
-    let count = 0;
-    const queue = [rootId];
-    while (queue.length > 0) {
-      const id = queue.pop()!;
-      count++;
-      for (const n of Object.values(nodes)) {
-        if (n.parentId === id) queue.push(n.id);
-      }
-    }
-    return count;
-  }
-
   const roots = (() => {
     const all = Object.values(nodes).filter((n) => n.parentId === null);
     const ordered = rootOrder
@@ -94,21 +72,6 @@ export default function Home() {
     return [...ordered, ...unseen];
   })();
 
-  const filteredRoots = searchQuery.trim()
-    ? roots.filter((r) => {
-        const q = searchQuery.toLowerCase();
-        if (isLocked(r.id)) return firstLine(r.content).toLowerCase().includes(q) ? false : false;
-        const queue = [r.id];
-        while (queue.length > 0) {
-          const id = queue.pop()!;
-          if (nodes[id]?.content.toLowerCase().includes(q)) return true;
-          for (const n of Object.values(nodes)) {
-            if (n.parentId === id) queue.push(n.id);
-          }
-        }
-        return false;
-      })
-    : roots;
 
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains("dark"));
@@ -116,7 +79,7 @@ export default function Home() {
     const saved = localStorage.getItem("sidebar-width");
     if (saved) {
       const w = parseInt(saved);
-      if (w >= 160 && w <= 480) setSidebarWidth(w);
+      if (w >= 224 && w <= 480) setSidebarWidth(w);
     }
   }, []);
 
@@ -124,7 +87,7 @@ export default function Home() {
   useEffect(() => {
     function onMove(e: MouseEvent) {
       if (!resizeRef.current.active) return;
-      const w = Math.min(480, Math.max(160, resizeRef.current.startWidth + e.clientX - resizeRef.current.startX));
+      const w = Math.min(480, Math.max(224, resizeRef.current.startWidth + e.clientX - resizeRef.current.startX));
       setSidebarWidth(w);
     }
     function onUp() {
@@ -168,9 +131,14 @@ export default function Home() {
     });
   }, [nodes, hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Ctrl+Z undo
+  // Keyboard shortcuts
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setShowSearch((s) => !s);
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
         const tag = (e.target as HTMLElement).tagName;
         if (tag === "TEXTAREA" || tag === "INPUT") return;
@@ -213,6 +181,12 @@ export default function Home() {
     prevRootRef.current = selectedRootId;
   }, [selectedRootId]);
 
+  // Seed sample thoughts on first open (before auto-select so nodes are ready)
+  useEffect(() => {
+    if (!hydrated) return;
+    if (Object.keys(nodes).length === 0) seedThoughts(SEED_THOUGHTS);
+  }, [hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!hydrated) return;
     if (!selectedRootId) {
@@ -221,7 +195,7 @@ export default function Home() {
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
       if (first) setSelectedRootId(first.id);
     }
-  }, [hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hydrated, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!hydrated) return;
@@ -355,6 +329,13 @@ export default function Home() {
     }
   }
 
+  function handleSearchSelect(nodeId: string, rootId: string) {
+    setShowSearch(false);
+    setSelectedRootId(rootId);
+    setScrollToId(nodeId);
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  }
+
   function handleRemovePin(rootId: string) {
     const next = { ...pinsMap };
     delete next[rootId];
@@ -473,6 +454,15 @@ export default function Home() {
           </span>
           <div className="flex items-center gap-0.5">
             <button
+              onClick={() => setShowSearch(true)}
+              title="Search (Ctrl+K)"
+              className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
+            <button
               onClick={toggleDark}
               title={isDark ? "Light mode" : "Dark mode"}
               className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -499,56 +489,22 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Search bar */}
-        <div className="px-2 py-1.5 border-b border-gray-100 dark:border-gray-800 shrink-0">
-          <div className="relative">
-            <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 dark:text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search thoughts…"
-              className="w-full pl-6 pr-6 py-1 text-xs rounded-md bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-violet-400"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-
         {/* Root thought list */}
         <div className="flex-1 overflow-y-auto py-1">
-          {filteredRoots.length === 0 ? (
+          {roots.length === 0 ? (
             <div className="px-4 py-8 text-center">
-              {searchQuery ? (
-                <p className="text-xs text-gray-400 dark:text-gray-500">No thoughts match</p>
-              ) : (
-                <>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">No thoughts yet</p>
-                  <button onClick={handleCreateRoot} className="text-xs text-violet-600 dark:text-violet-400 hover:underline">
-                    Create one
-                  </button>
-                </>
-              )}
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">No thoughts yet</p>
+              <button onClick={handleCreateRoot} className="text-xs text-violet-600 dark:text-violet-400 hover:underline">
+                Create one
+              </button>
             </div>
           ) : (
-            filteredRoots.map((root) => {
+            roots.map((root) => {
               const isActive = selectedRootId === root.id;
               const locked = isLocked(root.id);
               const hasPin = !!pinsMap[root.id];
               const isDragging = draggedId === root.id;
               const isDragOver = dragOverId === root.id;
-              const nodeCount = countDescendants(root.id);
-              const editedAt = root.updatedAt ?? root.createdAt;
               return (
                 <div
                   key={root.id}
@@ -585,14 +541,6 @@ export default function Home() {
                         : firstLine(root.content) || <span className="italic text-gray-400 dark:text-gray-600">Untitled</span>
                       }
                     </div>
-                    {!locked && (
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <span className="text-[10px] text-gray-400 dark:text-gray-500">{timeAgo(editedAt)}</span>
-                        {nodeCount > 1 && (
-                          <span className="text-[10px] text-gray-400 dark:text-gray-500">· {nodeCount} nodes</span>
-                        )}
-                      </div>
-                    )}
                   </button>
                   {/* Lock button */}
                   <button
@@ -621,7 +569,16 @@ export default function Home() {
         </div>
 
         {/* Sidebar footer: import */}
-        <div className="shrink-0 border-t border-gray-100 dark:border-gray-800 px-3 py-2">
+        <div className="shrink-0 border-t border-gray-100 dark:border-gray-800 px-3 py-2 flex flex-col gap-0.5">
+          <button
+            onClick={() => { seedThoughts(SEED_THOUGHTS); toast("Sample thoughts loaded"); }}
+            className="w-full flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 transition-colors py-1"
+          >
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+            </svg>
+            Load sample data
+          </button>
           <button
             onClick={() => importInputRef.current?.click()}
             className="w-full flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors py-1"
@@ -870,6 +827,7 @@ export default function Home() {
               initialEditId={initialEditId}
               collapseSignal={collapseSignal}
               expandSignal={expandSignal}
+              scrollToId={scrollToId}
               onUpdate={handleUpdateNode}
               onCreateChild={handleCreateChild}
               onDelete={handleDeleteNode}
@@ -910,6 +868,16 @@ export default function Home() {
           message="Delete this entire thought and all its nodes?"
           onConfirm={() => { setShowDeleteConfirm(false); handleDeleteNode(selectedRootId); }}
           onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
+
+      {/* Search dialog */}
+      {showSearch && (
+        <SearchDialog
+          nodes={nodes}
+          lockedRootIds={new Set(roots.filter((r) => isLocked(r.id)).map((r) => r.id))}
+          onSelect={handleSearchSelect}
+          onClose={() => setShowSearch(false)}
         />
       )}
 

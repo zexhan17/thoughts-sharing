@@ -161,5 +161,19 @@ export function useNodes() {
     [nodes, persist, pushHistory]
   );
 
-  return { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, replaceThought, undo };
+  const seedThoughts = useCallback(
+    (roots: ExportedNode[]) => {
+      const newNodes = { ...nodes };
+      function insert(exported: ExportedNode, parent: string | null): void {
+        const id = generateId();
+        newNodes[id] = { id, content: exported.content, parentId: parent, createdAt: exported.createdAt };
+        for (const child of exported.children) insert(child, id);
+      }
+      for (const root of roots) insert(root, null);
+      persist(newNodes);
+    },
+    [nodes, persist]
+  );
+
+  return { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, replaceThought, undo, seedThoughts };
 }
