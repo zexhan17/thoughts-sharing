@@ -3,6 +3,7 @@ import { useNodes } from "../diary/useNodes";
 import { NoteTree, firstLine } from "../diary/NoteTree";
 import { MapView } from "../diary/MapView";
 import { PinDialog } from "../diary/PinDialog";
+import { ConfirmDialog } from "../diary/ConfirmDialog";
 import { buildShareUrl, decodeShareHash, findExistingRootId } from "../diary/share";
 import type { Route } from "./+types/home";
 
@@ -34,9 +35,11 @@ export default function Home() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   const [pinsMap, setPinsMap] = useState<Record<string, string>>({});
   const [unlockedIds, setUnlockedIds] = useState<Set<string>>(new Set());
-  const [pinDialog, setPinDialog] = useState<{ id: string; mode: "unlock" | "set" } | null>(null);
+  const [pinDialog, setPinDialog] = useState<{ id: string; mode: "unlock" | "set" | "change-verify" | "change-new" } | null>(null);
   const [pinError, setPinError] = useState("");
 
   const prevRootRef = useRef<string | null>(null);
@@ -204,6 +207,10 @@ export default function Home() {
     setSelectedRootId(id);
     setInitialEditId(null);
     if (window.innerWidth < 768) setSidebarOpen(false);
+    if (isLocked(id)) {
+      setPinError("");
+      setPinDialog({ id, mode: "unlock" });
+    }
   }
 
   function handleDuplicateRoot(id: string) {
@@ -265,17 +272,25 @@ export default function Home() {
     if (!pinDialog) return;
     const { id, mode } = pinDialog;
     setPinError("");
-    if (mode === "set") {
+    if (mode === "set" || mode === "change-new") {
       const hash = await hashPin(pin, id);
       const next = { ...pinsMap, [id]: hash };
       setPinsMap(next);
       localStorage.setItem(PINS_KEY, JSON.stringify(next));
       setPinDialog(null);
-    } else {
+      if (mode === "change-new") toast("PIN changed");
+    } else if (mode === "unlock") {
       const hash = await hashPin(pin, id);
       if (hash === pinsMap[id]) {
         setUnlockedIds((s) => new Set([...s, id]));
         setPinDialog(null);
+      } else {
+        setPinError("Incorrect PIN");
+      }
+    } else if (mode === "change-verify") {
+      const hash = await hashPin(pin, id);
+      if (hash === pinsMap[id]) {
+        setPinDialog({ id, mode: "change-new" });
       } else {
         setPinError("Incorrect PIN");
       }
@@ -393,35 +408,6 @@ export default function Home() {
                       : firstLine(root.content) || <span className="italic text-gray-400 dark:text-gray-600">Untitled</span>
                     }
                   </button>
-                  <button
-                    onClick={() => handleCopyShare(root.id)}
-                    title="Copy share link"
-                    className={`shrink-0 w-6 h-6 flex items-center justify-center rounded md:opacity-0 md:group-hover:opacity-100 transition-colors ${
-                      copiedId === root.id
-                        ? "text-green-500 md:opacity-100"
-                        : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-                    }`}
-                  >
-                    {copiedId === root.id ? (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                      </svg>
-                    )}
-                  </button>
-                  {/* Duplicate button */}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDuplicateRoot(root.id); }}
-                    title="Duplicate thought"
-                    className="shrink-0 w-6 h-6 flex items-center justify-center rounded md:opacity-0 md:group-hover:opacity-100 transition-colors text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </button>
                   {/* Lock button */}
                   <button
                     onClick={(e) => handleLockClick(e, root.id)}
@@ -481,6 +467,7 @@ export default function Home() {
         {selectedRootId && nodes[selectedRootId] && !isLocked(selectedRootId) && (
           <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-1">
             <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
+
               <button
                 onClick={() => setViewMode("tree")}
                 title="Tree view"
@@ -508,6 +495,67 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
                 Map
+              </button>
+            </div>
+
+            {/* Add node + Duplicate + Share + Delete */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => { const newId = handleCreateChild(selectedRootId); setInitialEditId(newId); }}
+                title="Add node"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+              <button
+                onClick={() => handleDuplicateRoot(selectedRootId)}
+                title="Duplicate thought"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => handleCopyShare(selectedRootId)}
+                title="Copy share link"
+                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+                  copiedId === selectedRootId
+                    ? "text-green-500"
+                    : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                }`}
+              >
+                {copiedId === selectedRootId ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                )}
+              </button>
+              {pinsMap[selectedRootId] && (
+                <button
+                  onClick={() => { setPinError(""); setPinDialog({ id: selectedRootId, mode: "change-verify" }); }}
+                  title="Change PIN"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                </button>
+              )}
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                title="Delete thought"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
               </button>
             </div>
           </div>
@@ -600,13 +648,27 @@ export default function Home() {
         )}
       </div>
 
+      {/* Delete thought confirm */}
+      {showDeleteConfirm && selectedRootId && (
+        <ConfirmDialog
+          message="Delete this entire thought and all its nodes?"
+          onConfirm={() => { setShowDeleteConfirm(false); handleDeleteNode(selectedRootId); }}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
+
       {/* PIN dialog */}
       {pinDialog && (
         <PinDialog
+          key={pinDialog.mode}
           mode={pinDialog.mode}
-          externalError={pinDialog.mode === "unlock" ? pinError : undefined}
+          externalError={pinError || undefined}
           onConfirm={handlePinConfirm}
           onCancel={() => { setPinDialog(null); setPinError(""); }}
+          onChangePinRequest={pinDialog.mode === "unlock" ? () => {
+            setPinError("");
+            setPinDialog({ id: pinDialog.id, mode: "change-verify" });
+          } : undefined}
         />
       )}
     </div>
