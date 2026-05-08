@@ -41,6 +41,7 @@ function saveToStorage(nodes: NodesMap) {
 export function useNodes() {
   const [nodes, setNodes] = useState<NodesMap>({});
   const [hydrated, setHydrated] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState(0);
   const historyRef = useRef<NodesMap[]>([]);
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export function useNodes() {
   const persist = useCallback((updated: NodesMap) => {
     setNodes(updated);
     saveToStorage(updated);
+    setLastSavedAt(Date.now());
   }, []);
 
   const pushHistory = useCallback((snapshot: NodesMap) => {
@@ -179,6 +181,15 @@ export function useNodes() {
     [nodes, persist, pushHistory]
   );
 
+  const moveNode = useCallback(
+    (nodeId: string, newParentId: string | null) => {
+      if (!nodes[nodeId]) return;
+      pushHistory(nodes);
+      persist({ ...nodes, [nodeId]: { ...nodes[nodeId], parentId: newParentId, updatedAt: new Date().toISOString() } });
+    },
+    [nodes, persist, pushHistory]
+  );
+
   const seedThoughts = useCallback(
     (roots: ExportedNode[]) => {
       const newNodes = { ...nodes };
@@ -193,5 +204,5 @@ export function useNodes() {
     [nodes, persist]
   );
 
-  return { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, importMany, replaceThought, undo, seedThoughts };
+  return { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, moveNode, exportThought, importThought, importMany, replaceThought, undo, seedThoughts };
 }

@@ -6,6 +6,8 @@ import { PinDialog } from "../diary/PinDialog";
 import { ConfirmDialog } from "../diary/ConfirmDialog";
 import { buildShareUrl, decodeShareHash, findExistingRootId } from "../diary/share";
 import { SearchDialog } from "../diary/SearchDialog";
+import { MoveDialog } from "../diary/MoveDialog";
+import { ShortcutsDialog } from "../diary/ShortcutsDialog";
 import { SEED_THOUGHTS } from "../diary/seedData";
 import type { Route } from "./+types/home";
 
@@ -44,7 +46,7 @@ function validateBulkExport(data: unknown): data is BulkExport {
 }
 
 export default function Home() {
-  const { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, importMany, replaceThought, undo, seedThoughts } = useNodes();
+  const { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, moveNode, exportThought, importThought, importMany, replaceThought, undo, seedThoughts } = useNodes();
 
   const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
   const [initialEditId, setInitialEditId] = useState<string | null>(null);
@@ -54,6 +56,9 @@ export default function Home() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [movingNodeId, setMovingNodeId] = useState<string | null>(null);
+  const [showSaved, setShowSaved] = useState(false);
   const [scrollToId, setScrollToId] = useState<string | null>(null);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -148,6 +153,14 @@ export default function Home() {
     });
   }, [nodes, hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-save indicator
+  useEffect(() => {
+    if (!lastSavedAt) return;
+    setShowSaved(true);
+    const t = setTimeout(() => setShowSaved(false), 2000);
+    return () => clearTimeout(t);
+  }, [lastSavedAt]);
+
   // Keyboard shortcuts
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -161,6 +174,12 @@ export default function Home() {
         if (tag === "TEXTAREA" || tag === "INPUT") return;
         e.preventDefault();
         undo();
+        return;
+      }
+      if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag === "TEXTAREA" || tag === "INPUT") return;
+        setShowShortcuts((s) => !s);
       }
     }
     document.addEventListener("keydown", onKey);
@@ -357,6 +376,24 @@ export default function Home() {
     toast("PIN removed");
   }
 
+  function handleMoveComplete(newParentId: string | null) {
+    if (!movingNodeId) return;
+    const node = nodes[movingNodeId];
+    if (!node) { setMovingNodeId(null); return; }
+    moveNode(movingNodeId, newParentId);
+    // If moved node was a root and is now a child, or vice-versa, adjust selection
+    if (newParentId === null && node.parentId !== null) {
+      // became a root — select it
+      setSelectedRootId(movingNodeId);
+    } else if (newParentId !== null && node.parentId === null) {
+      // was a root, now a child — find its new root and select that
+      let cur = nodes[newParentId];
+      while (cur?.parentId) cur = nodes[cur.parentId];
+      if (cur) setSelectedRootId(cur.id);
+    }
+    setMovingNodeId(null);
+  }
+
   function handleExport() {
     if (!selectedRootId || !nodes[selectedRootId]) return;
     const data = exportThought(selectedRootId);
@@ -518,6 +555,13 @@ export default function Home() {
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
+            </button>
+            <button
+              onClick={() => setShowShortcuts(true)}
+              title="Keyboard shortcuts (?)"
+              className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-bold"
+            >
+              ?
             </button>
             <button
               onClick={toggleDark}
@@ -888,6 +932,7 @@ export default function Home() {
               onUpdate={handleUpdateNode}
               onCreateChild={handleCreateChild}
               onDelete={handleDeleteNode}
+              onMove={(nodeId) => setMovingNodeId(nodeId)}
             />
           )
         ) : (
@@ -952,6 +997,27 @@ export default function Home() {
           } : undefined}
         />
       )}
+
+      {/* Move dialog */}
+      {movingNodeId && (
+        <MoveDialog
+          nodeId={movingNodeId}
+          nodes={nodes}
+          onMove={handleMoveComplete}
+          onClose={() => setMovingNodeId(null)}
+        />
+      )}
+
+      {/* Shortcuts dialog */}
+      {showShortcuts && <ShortcutsDialog onClose={() => setShowShortcuts(false)} />}
+
+      {/* Auto-save badge */}
+      <div className={`fixed bottom-4 right-4 flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-full shadow-lg transition-opacity duration-300 pointer-events-none ${showSaved ? "opacity-100" : "opacity-0"}`}>
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+        </svg>
+        Saved
+      </div>
     </div>
   );
 }

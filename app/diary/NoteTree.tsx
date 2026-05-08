@@ -57,9 +57,11 @@ interface NodeProps {
   drag: DragState;
   onEdit: (id: string) => void;
   onSave: (id: string, content: string) => void;
+  onAutoSave: (id: string, content: string) => void;
   onCancel: (id: string) => void;
   onAddChild: (parentId: string) => void;
   onDelete: (id: string) => void;
+  onMove?: (id: string) => void;
   onDragStart: (id: string, parentId: string | null) => void;
   onDragOver: (e: React.DragEvent, id: string, parentId: string | null) => void;
   onDrop: (targetId: string, parentId: string | null) => void;
@@ -72,7 +74,7 @@ interface NodeProps {
 function NoteNode({
   node, nodes, depth, isLast, parentLines,
   editingId, highlightId, childOrders, drag,
-  onEdit, onSave, onCancel, onAddChild, onDelete,
+  onEdit, onSave, onAutoSave, onCancel, onAddChild, onDelete, onMove,
   onDragStart, onDragOver, onDrop, onDragEnd,
   onTouchDragStart, onTouchDragOver, onTouchDrop,
 }: NodeProps) {
@@ -83,6 +85,7 @@ function NoteNode({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isEditing = editingId === node.id;
   const isHighlighted = highlightId === node.id;
 
@@ -115,9 +118,24 @@ function NoteNode({
     }
   }, [draft, isEditing]);
 
+  function scheduleSave(value: string) {
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      if (value.trim()) onAutoSave(node.id, value.trim());
+    }, 1000);
+  }
+
+  function handleDraftChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setDraft(e.target.value);
+    scheduleSave(e.target.value);
+  }
+
   function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Escape") { e.preventDefault(); onCancel(node.id); }
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); onSave(node.id, draft); }
+    if (e.key === "Escape" || (e.key === "Enter" && (e.ctrlKey || e.metaKey))) {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+      e.preventDefault();
+      onSave(node.id, draft);
+    }
   }
 
   function handleTouchStart(e: React.TouchEvent) {
@@ -195,23 +213,17 @@ function NoteNode({
         {/* Note content */}
         <div className="flex-1 min-w-0 py-0.5">
           {isEditing ? (
-            <div className="flex flex-col gap-1.5 pr-2 pb-1">
+            <div className="pr-2 pb-1">
               <textarea
                 ref={areaRef}
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={handleDraftChange}
                 onKeyDown={handleKey}
+                onBlur={() => onSave(node.id, draft)}
                 placeholder="Write your note…"
                 rows={2}
                 className="w-full px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-violet-300 dark:border-violet-600 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-violet-500 leading-relaxed overflow-hidden"
               />
-              <div className="flex items-center gap-2">
-                <button onMouseDown={(e) => e.preventDefault()} onClick={() => onSave(node.id, draft)}
-                  className="px-3 py-1 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-md transition-colors">Save</button>
-                <button onMouseDown={(e) => e.preventDefault()} onClick={() => onCancel(node.id)}
-                  className="px-3 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-md transition-colors">Cancel</button>
-                <span className="text-xs text-gray-300 dark:text-gray-600 hidden sm:inline">Ctrl+Enter · Esc</span>
-              </div>
             </div>
           ) : (
             <button onClick={() => onEdit(node.id)}
@@ -232,6 +244,14 @@ function NoteNode({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
             </button>
+            {depth > 0 && onMove && (
+              <button onClick={() => onMove(node.id)} title="Move node"
+                className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+              </button>
+            )}
             {depth > 0 && (
               <button onClick={() => setShowDeleteDialog(true)} title="Delete"
                 className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
@@ -262,7 +282,7 @@ function NoteNode({
             <NoteNode key={child.id} node={child} nodes={nodes} depth={depth + 1}
               isLast={idx === children.length - 1} parentLines={[...parentLines, !isLast]}
               editingId={editingId} highlightId={highlightId} childOrders={childOrders} drag={drag}
-              onEdit={onEdit} onSave={onSave} onCancel={onCancel} onAddChild={onAddChild} onDelete={onDelete}
+              onEdit={onEdit} onSave={onSave} onAutoSave={onAutoSave} onCancel={onCancel} onAddChild={onAddChild} onDelete={onDelete} onMove={onMove}
               onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}
               onTouchDragStart={onTouchDragStart} onTouchDragOver={onTouchDragOver} onTouchDrop={onTouchDrop}
             />
@@ -283,9 +303,10 @@ interface NoteTreeProps {
   onUpdate: (id: string, content: string) => void;
   onCreateChild: (parentId: string) => string;
   onDelete: (id: string) => void;
+  onMove?: (nodeId: string) => void;
 }
 
-export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandSignal, scrollToId, onUpdate, onCreateChild, onDelete }: NoteTreeProps) {
+export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandSignal, scrollToId, onUpdate, onCreateChild, onDelete, onMove }: NoteTreeProps) {
   const [editingId, setEditingId] = useState<string | null>(initialEditId);
   const [childOrders, setChildOrders] = useState<Record<string, string[]>>({});
   const [drag, setDrag] = useState<DragState>({ draggedId: null, dragParentId: null, dragOverId: null });
@@ -354,6 +375,11 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
     setEditingId(null);
   }
 
+  function handleAutoSave(id: string, content: string) {
+    if (!content.trim()) return;
+    onUpdate(id, content.trim());
+  }
+
   function handleCancel(id: string) {
     const node = nodes[id];
     if (node && !node.content.trim()) onDelete(id);
@@ -414,7 +440,7 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
         <div className="p-5 sm:p-8 max-w-2xl">
           <NoteNode node={root} nodes={nodes} depth={0} isLast={true} parentLines={[]}
             editingId={editingId} highlightId={highlightId} childOrders={childOrders} drag={drag}
-            onEdit={setEditingId} onSave={handleSave} onCancel={handleCancel} onAddChild={handleAddChild} onDelete={onDelete}
+            onEdit={setEditingId} onSave={handleSave} onAutoSave={handleAutoSave} onCancel={handleCancel} onAddChild={handleAddChild} onDelete={onDelete} onMove={onMove}
             onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} onDragEnd={handleDragEnd}
             onTouchDragStart={handleTouchDragStart} onTouchDragOver={handleTouchDragOver} onTouchDrop={handleTouchDrop}
           />
