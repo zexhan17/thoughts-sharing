@@ -529,7 +529,7 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
   return (
     <ExpandContext.Provider value={expandCtx}>
       <div className="h-full overflow-y-auto">
-        <div className="p-5 sm:p-8 max-w-2xl">
+        <div className="p-5 sm:p-8 max-w-2xl mb-50">
           <NoteNode node={root} nodes={nodes} depth={0} isLast={true} parentLines={[]}
             editingId={editingId} highlightId={highlightId} childOrders={childOrders} nodeColors={nodeColors} drag={drag}
             onEdit={setEditingId} onSave={handleSave} onAutoSave={handleAutoSave} onCancel={handleCancel} onAddChild={handleAddChild} onDelete={onDelete} onMove={onMove} onNodeColorChange={handleNodeColorChange}
