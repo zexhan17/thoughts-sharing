@@ -8,6 +8,9 @@ export function firstLine(content: string): string {
 }
 
 const CHILD_ORDER_KEY = "diary-child-order";
+const COL = 20;  // px per indent level
+const MID = 14;  // vertical midpoint of a row in px (h-7 = 28px → 14px)
+const LX  = 9;   // x of vertical line within each column
 
 function loadChildOrders(): Record<string, string[]> {
   try {
@@ -132,44 +135,41 @@ function NoteNode({
       <div
         data-node-id={node.id}
         data-parent-id={node.parentId ?? "null"}
-        className={`flex items-start group relative rounded-md transition-colors ${
+        className={`flex items-start group relative transition-colors ${
           isDragging ? "opacity-40" : ""
-        } ${isDragOver ? "ring-1 ring-violet-400 dark:ring-violet-500 bg-violet-50/50 dark:bg-violet-900/20" : ""}`}
+        } ${isDragOver ? "rounded-md ring-1 ring-violet-400 dark:ring-violet-500 bg-violet-50/50 dark:bg-violet-900/20" : ""}`}
         draggable={!isEditing}
         onDragStart={(e) => { e.stopPropagation(); onDragStart(node.id, node.parentId); }}
         onDragOver={(e) => { e.stopPropagation(); onDragOver(e, node.id, node.parentId); }}
         onDrop={(e) => { e.stopPropagation(); onDrop(node.id, node.parentId); }}
         onDragEnd={(e) => { e.stopPropagation(); onDragEnd(); }}
       >
-        {/* Ancestor vertical lines */}
+        {/* Ancestor vertical lines — self-stretch so height fills the row */}
         {parentLines.map((show, i) => (
-          <div key={i} className="shrink-0 relative" style={{ width: 20 }}>
-            {show && <div className="absolute left-2.25 top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700" />}
+          <div key={i} className="shrink-0 relative self-stretch" style={{ width: COL }}>
+            {show && (
+              <div
+                className="absolute w-px bg-gray-200 dark:bg-gray-700"
+                style={{ left: LX, top: 0, bottom: 0 }}
+              />
+            )}
           </div>
         ))}
 
-        {/* Branch connector */}
+        {/* Branch connector — self-stretch so height fills the row */}
         {depth > 0 && (
-          <div className="shrink-0 relative" style={{ width: 20 }}>
-            <div className="absolute left-2.25 w-px bg-gray-200 dark:bg-gray-700"
-              style={{ top: 0, height: isLast ? "1.1rem" : "100%" }} />
-            <div className="absolute bg-gray-200 dark:bg-gray-700"
-              style={{ left: 9, top: "1.1rem", width: 11, height: 1 }} />
+          <div className="shrink-0 relative self-stretch" style={{ width: COL }}>
+            {/* Vertical: full height for non-last, half for last */}
+            <div
+              className="absolute w-px bg-gray-200 dark:bg-gray-700"
+              style={{ left: LX, top: 0, height: isLast ? MID : "100%" }}
+            />
+            {/* Horizontal: from line center to right edge of column */}
+            <div
+              className="absolute h-px bg-gray-200 dark:bg-gray-700"
+              style={{ left: LX, top: MID, right: 0 }}
+            />
           </div>
-        )}
-
-        {/* Drag handle — touch events here, mouse drag on the whole row */}
-        {!isEditing && (
-          <span
-            className="shrink-0 flex items-center self-center cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity mr-0.5 mt-0.5 touch-none"
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          >
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
-            </svg>
-          </span>
         )}
 
         {/* Expand / collapse toggle */}
@@ -236,7 +236,7 @@ function NoteNode({
           )}
         </div>
 
-        {/* Actions — always visible on mobile, hover-only on desktop */}
+        {/* Actions + drag handle — always visible on mobile, hover-only on desktop */}
         {!isEditing && (
           <div className="shrink-0 flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity self-start mt-0.5">
             <button
@@ -257,6 +257,18 @@ function NoteNode({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </button>
+            {/* Drag handle — right side so it doesn't disturb tree line alignment */}
+            <span
+              className="w-6 h-6 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 touch-none"
+              title="Drag to reorder"
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+              </svg>
+            </span>
             {showDeleteDialog && (
               <ConfirmDialog
                 message="Delete this note?"
@@ -337,7 +349,6 @@ export function NoteTree({ rootId, nodes, initialEditId, onUpdate, onCreateChild
     });
   }, [nodes]);
 
-  // Sync when the parent signals a new node should be in edit mode
   useEffect(() => {
     if (initialEditId !== null) setEditingId(initialEditId);
   }, [initialEditId]);
@@ -346,19 +357,14 @@ export function NoteTree({ rootId, nodes, initialEditId, onUpdate, onCreateChild
   if (!root) return null;
 
   function handleSave(id: string, content: string) {
-    if (!content.trim()) {
-      handleCancel(id);
-      return;
-    }
+    if (!content.trim()) { handleCancel(id); return; }
     onUpdate(id, content.trim());
     setEditingId(null);
   }
 
   function handleCancel(id: string) {
     const node = nodes[id];
-    if (node && !node.content.trim()) {
-      onDelete(id);
-    }
+    if (node && !node.content.trim()) onDelete(id);
     setEditingId(null);
   }
 
@@ -406,7 +412,6 @@ export function NoteTree({ rootId, nodes, initialEditId, onUpdate, onCreateChild
     setDrag({ draggedId: null, dragParentId: null, dragOverId: null });
   }
 
-  // Touch drag handlers
   function handleTouchDragStart(id: string, parentId: string | null) {
     setDrag({ draggedId: id, dragParentId: parentId, dragOverId: null });
   }
