@@ -129,7 +129,7 @@ function NoteNode({
   const isDragOver = drag.dragOverId === node.id && drag.dragParentId === node.parentId && drag.draggedId !== node.id;
 
   const rowStyle: React.CSSProperties = {};
-  if (depth === 0) { rowStyle.top = 0; rowStyle.zIndex = 10; }
+  if (hasChildren) { rowStyle.top = depth * 30; rowStyle.zIndex = Math.max(1, 10 - depth); }
   if (nodeColor && !isHighlighted && !isDragOver) {
     rowStyle.backgroundImage = `linear-gradient(${nodeColor.tint}, ${nodeColor.tint})`;
   }
@@ -206,7 +206,7 @@ function NoteNode({
         data-parent-id={node.parentId ?? "null"}
         className={`flex items-start group relative transition-colors ${isDragging ? "opacity-40" : ""} ${isDragOver ? "rounded-md ring-1 ring-violet-400 dark:ring-violet-500 bg-violet-50/50 dark:bg-violet-900/20" : ""
           } ${isHighlighted ? "rounded-lg ring-2 ring-yellow-400 dark:ring-yellow-500 bg-yellow-50 dark:bg-yellow-900/25" : ""
-          } ${depth === 0 ? "sticky bg-white dark:bg-gray-950" : ""} ${nodeColor && !isHighlighted && !isDragOver ? "rounded-md" : ""}`}
+          } ${hasChildren ? "sticky bg-white dark:bg-gray-950" : ""} ${nodeColor && !isHighlighted && !isDragOver ? "rounded-md" : ""}`}
         style={rowStyle}
         draggable={!isEditing}
         onDragStart={(e) => { e.stopPropagation(); onDragStart(node.id, node.parentId); }}
