@@ -12,17 +12,17 @@ const CHILD_ORDER_KEY = "diary-child-order";
 const NODE_COLORS_KEY = "diary-node-colors";
 const COL = 20;
 const MID = 14;
-const LX  = 9;
+const LX = 9;
 
 const NODE_COLORS = [
-  { id: "red",    hex: "#f87171", tint: "rgba(248,113,113,0.13)" },
-  { id: "orange", hex: "#fb923c", tint: "rgba(251,146,60,0.13)"  },
-  { id: "yellow", hex: "#facc15", tint: "rgba(250,204,21,0.13)"  },
-  { id: "green",  hex: "#4ade80", tint: "rgba(74,222,128,0.13)"  },
-  { id: "teal",   hex: "#2dd4bf", tint: "rgba(45,212,191,0.13)"  },
-  { id: "blue",   hex: "#60a5fa", tint: "rgba(96,165,250,0.13)"  },
+  { id: "red", hex: "#f87171", tint: "rgba(248,113,113,0.13)" },
+  { id: "orange", hex: "#fb923c", tint: "rgba(251,146,60,0.13)" },
+  { id: "yellow", hex: "#facc15", tint: "rgba(250,204,21,0.13)" },
+  { id: "green", hex: "#4ade80", tint: "rgba(74,222,128,0.13)" },
+  { id: "teal", hex: "#2dd4bf", tint: "rgba(45,212,191,0.13)" },
+  { id: "blue", hex: "#60a5fa", tint: "rgba(96,165,250,0.13)" },
   { id: "purple", hex: "#a78bfa", tint: "rgba(167,139,250,0.13)" },
-  { id: "pink",   hex: "#f472b6", tint: "rgba(244,114,182,0.13)" },
+  { id: "pink", hex: "#f472b6", tint: "rgba(244,114,182,0.13)" },
 ];
 
 function loadChildOrders(): Record<string, string[]> {
@@ -60,7 +60,7 @@ interface ExpandCtx {
   collapsedIds: Set<string>;
   toggle: (id: string) => void;
 }
-const ExpandContext = createContext<ExpandCtx>({ collapsedIds: new Set(), toggle: () => {} });
+const ExpandContext = createContext<ExpandCtx>({ collapsedIds: new Set(), toggle: () => { } });
 
 interface DragState {
   draggedId: string | null;
@@ -204,10 +204,9 @@ function NoteNode({
         ref={rowRef}
         data-node-id={node.id}
         data-parent-id={node.parentId ?? "null"}
-        className={`flex items-start group relative transition-colors ${isDragging ? "opacity-40" : ""} ${
-          isDragOver ? "rounded-md ring-1 ring-violet-400 dark:ring-violet-500 bg-violet-50/50 dark:bg-violet-900/20" : ""
-        } ${isHighlighted ? "rounded-lg ring-2 ring-yellow-400 dark:ring-yellow-500 bg-yellow-50 dark:bg-yellow-900/25" : ""
-        } ${depth === 0 ? "sticky bg-white dark:bg-gray-950" : ""} ${nodeColor && !isHighlighted && !isDragOver ? "rounded-md" : ""}`}
+        className={`flex items-start group relative transition-colors ${isDragging ? "opacity-40" : ""} ${isDragOver ? "rounded-md ring-1 ring-violet-400 dark:ring-violet-500 bg-violet-50/50 dark:bg-violet-900/20" : ""
+          } ${isHighlighted ? "rounded-lg ring-2 ring-yellow-400 dark:ring-yellow-500 bg-yellow-50 dark:bg-yellow-900/25" : ""
+          } ${depth === 0 ? "sticky bg-white dark:bg-gray-950" : ""} ${nodeColor && !isHighlighted && !isDragOver ? "rounded-md" : ""}`}
         style={rowStyle}
         draggable={!isEditing}
         onDragStart={(e) => { e.stopPropagation(); onDragStart(node.id, node.parentId); }}
@@ -281,7 +280,9 @@ function NoteNode({
             <button
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
-                setPickerPos({ top: rect.bottom + 4, left: Math.min(window.innerWidth - 230, Math.max(4, rect.left - 80)) });
+                const w = 252;
+                const left = Math.max(4, Math.min(rect.left - 80, window.innerWidth - w - 4));
+                setPickerPos({ top: rect.bottom + 4, left });
                 setShowColorPicker((s) => !s);
               }}
               title="Node color"
@@ -289,7 +290,7 @@ function NoteNode({
               style={{ color: nodeColor ? nodeColor.hex : undefined }}
             >
               <svg className={`w-3 h-3 ${nodeColor ? "" : "text-gray-400 dark:text-gray-500"}`} fill="currentColor" viewBox="0 0 16 16">
-                <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm0 14.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zM3 8a1 1 0 1 1 2 0A1 1 0 0 1 3 8zm2-3.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3-2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3 2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm1 3.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm0 14.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zM3 8a1 1 0 1 1 2 0A1 1 0 0 1 3 8zm2-3.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3-2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3 2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm1 3.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />
               </svg>
             </button>
             {depth > 0 && onMove && (
@@ -312,7 +313,7 @@ function NoteNode({
               <span className="w-6 h-6 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 touch-none" title="Drag to reorder"
                 onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+                  <path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
                 </svg>
               </span>
             )}
@@ -323,8 +324,8 @@ function NoteNode({
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowColorPicker(false)} />
                 <div
-                  className="fixed z-50 flex items-center gap-1.5 p-2 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700"
-                  style={{ top: pickerPos.top, left: pickerPos.left }}
+                  className="fixed z-50 flex items-center gap-1.5 p-2 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 flex-wrap"
+                  style={{ top: pickerPos.top, left: pickerPos.left, maxWidth: "calc(100vw - 8px)" }}
                 >
                   {NODE_COLORS.map((c) => (
                     <button

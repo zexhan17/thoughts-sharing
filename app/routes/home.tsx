@@ -903,7 +903,9 @@ export default function Home() {
               <button
                 onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
-                  setColorPickerPos({ top: rect.bottom + 6, left: Math.min(window.innerWidth - 220, rect.left - 80) });
+                  const w = 252;
+                  const left = Math.max(4, Math.min(rect.left - 80, window.innerWidth - w - 4));
+                  setColorPickerPos({ top: rect.bottom + 6, left });
                   setColorPickerRootId(colorPickerRootId === selectedRootId ? null : selectedRootId);
                 }}
                 title="Label color"
@@ -1108,8 +1110,8 @@ export default function Home() {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setColorPickerRootId(null)} />
           <div
-            className="fixed z-50 flex items-center gap-1.5 p-2 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700"
-            style={{ top: colorPickerPos.top, left: colorPickerPos.left }}
+            className="fixed z-50 flex items-center gap-1.5 p-2 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 flex-wrap"
+            style={{ top: colorPickerPos.top, left: colorPickerPos.left, maxWidth: "calc(100vw - 8px)" }}
           >
             {LABEL_COLORS.map((c) => (
               <button
