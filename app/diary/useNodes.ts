@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { DiaryNode, ExportData, ExportedNode, NodesMap } from "./types";
 
 const STORAGE_KEY = "diary-nodes";
@@ -15,7 +15,6 @@ function loadFromStorage(): NodesMap {
     const parsed = JSON.parse(raw) as Record<string, any>;
     const result: NodesMap = {};
     for (const [id, n] of Object.entries(parsed)) {
-      // Migrate old format: separate title + content → single content field
       let content: string = n.content ?? "";
       if ("title" in n && typeof n.title === "string" && n.title) {
         content = n.title + (content ? "\n\n" + content : "");
@@ -25,6 +24,7 @@ function loadFromStorage(): NodesMap {
         content,
         parentId: n.parentId ?? null,
         createdAt: n.createdAt ?? new Date().toISOString(),
+        updatedAt: n.updatedAt,
       };
     }
     return result;
@@ -41,6 +41,7 @@ function saveToStorage(nodes: NodesMap) {
 export function useNodes() {
   const [nodes, setNodes] = useState<NodesMap>({});
   const [hydrated, setHydrated] = useState(false);
+  const historyRef = useRef<NodesMap[]>([]);
 
   useEffect(() => {
     const stored = loadFromStorage();
@@ -53,21 +54,35 @@ export function useNodes() {
     saveToStorage(updated);
   }, []);
 
+  const pushHistory = useCallback((snapshot: NodesMap) => {
+    historyRef.current = [...historyRef.current.slice(-29), snapshot];
+  }, []);
+
+  const undo = useCallback(() => {
+    if (historyRef.current.length === 0) return;
+    const prev = historyRef.current[historyRef.current.length - 1];
+    historyRef.current = historyRef.current.slice(0, -1);
+    setNodes(prev);
+    saveToStorage(prev);
+  }, []);
+
   const createNode = useCallback(
     (content: string, parentId: string | null): string => {
       const id = generateId();
+      pushHistory(nodes);
       persist({ ...nodes, [id]: { id, content, parentId, createdAt: new Date().toISOString() } });
       return id;
     },
-    [nodes, persist]
+    [nodes, persist, pushHistory]
   );
 
   const updateNode = useCallback(
     (id: string, content: string) => {
       if (!nodes[id]) return;
-      persist({ ...nodes, [id]: { ...nodes[id], content } });
+      pushHistory(nodes);
+      persist({ ...nodes, [id]: { ...nodes[id], content, updatedAt: new Date().toISOString() } });
     },
-    [nodes, persist]
+    [nodes, persist, pushHistory]
   );
 
   const deleteNode = useCallback(
@@ -81,11 +96,12 @@ export function useNodes() {
           if (n.parentId === current) queue.push(n.id);
         }
       }
+      pushHistory(nodes);
       const updated = { ...nodes };
       toDelete.forEach((nid) => delete updated[nid]);
       persist(updated);
     },
-    [nodes, persist]
+    [nodes, persist, pushHistory]
   );
 
   const exportThought = useCallback(
@@ -112,11 +128,12 @@ export function useNodes() {
         for (const child of exported.children) insertTree(child, id);
         return id;
       }
+      pushHistory(nodes);
       const rootId = insertTree(data.thought, parentId);
       persist(newNodes);
       return rootId;
     },
-    [nodes, persist]
+    [nodes, persist, pushHistory]
   );
 
   const replaceThought = useCallback(
@@ -136,12 +153,13 @@ export function useNodes() {
         for (const child of exported.children) insertTree(child, id);
         return id;
       }
+      pushHistory(nodes);
       const newRootId = insertTree(data.thought, null);
       persist(updated);
       return newRootId;
     },
-    [nodes, persist]
+    [nodes, persist, pushHistory]
   );
 
-  return { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, replaceThought };
+  return { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, replaceThought, undo };
 }

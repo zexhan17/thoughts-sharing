@@ -3,6 +3,7 @@ export interface DiaryNode {
   content: string;
   parentId: string | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export type NodesMap = Record<string, DiaryNode>;

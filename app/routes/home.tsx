@@ -22,10 +22,22 @@ async function hashPin(pin: string, nodeId: string): Promise<string> {
     .join("");
 }
 
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return `${Math.floor(days / 30)}mo ago`;
+}
+
 const PINS_KEY = "diary-pins";
 
 export default function Home() {
-  const { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, replaceThought } = useNodes();
+  const { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, replaceThought, undo } = useNodes();
 
   const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
   const [initialEditId, setInitialEditId] = useState<string | null>(null);
@@ -34,6 +46,7 @@ export default function Home() {
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -42,11 +55,34 @@ export default function Home() {
   const [pinDialog, setPinDialog] = useState<{ id: string; mode: "unlock" | "set" | "change-verify" | "change-new" } | null>(null);
   const [pinError, setPinError] = useState("");
 
-  const prevRootRef = useRef<string | null>(null);
+  const [collapseSignal, setCollapseSignal] = useState(0);
+  const [expandSignal, setExpandSignal] = useState(0);
 
   const [rootOrder, setRootOrder] = useState<string[]>([]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const [sidebarWidth, setSidebarWidth] = useState(224);
+
+  const prevRootRef = useRef<string | null>(null);
+  const swipeStartX = useRef<number | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const resizeRef = useRef<{ active: boolean; startX: number; startWidth: number }>({ active: false, startX: 0, startWidth: 224 });
+
+  const isLocked = (id: string | null) => !!id && !!pinsMap[id] && !unlockedIds.has(id);
+
+  function countDescendants(rootId: string): number {
+    let count = 0;
+    const queue = [rootId];
+    while (queue.length > 0) {
+      const id = queue.pop()!;
+      count++;
+      for (const n of Object.values(nodes)) {
+        if (n.parentId === id) queue.push(n.id);
+      }
+    }
+    return count;
+  }
 
   const roots = (() => {
     const all = Object.values(nodes).filter((n) => n.parentId === null);
@@ -58,12 +94,57 @@ export default function Home() {
     return [...ordered, ...unseen];
   })();
 
+  const filteredRoots = searchQuery.trim()
+    ? roots.filter((r) => {
+        const q = searchQuery.toLowerCase();
+        if (isLocked(r.id)) return firstLine(r.content).toLowerCase().includes(q) ? false : false;
+        const queue = [r.id];
+        while (queue.length > 0) {
+          const id = queue.pop()!;
+          if (nodes[id]?.content.toLowerCase().includes(q)) return true;
+          for (const n of Object.values(nodes)) {
+            if (n.parentId === id) queue.push(n.id);
+          }
+        }
+        return false;
+      })
+    : roots;
+
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains("dark"));
     if (window.innerWidth < 768) setSidebarOpen(false);
+    const saved = localStorage.getItem("sidebar-width");
+    if (saved) {
+      const w = parseInt(saved);
+      if (w >= 160 && w <= 480) setSidebarWidth(w);
+    }
   }, []);
 
-  // Load + save root order
+  // Sidebar resize (desktop)
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      if (!resizeRef.current.active) return;
+      const w = Math.min(480, Math.max(160, resizeRef.current.startWidth + e.clientX - resizeRef.current.startX));
+      setSidebarWidth(w);
+    }
+    function onUp() {
+      if (!resizeRef.current.active) return;
+      resizeRef.current.active = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("sidebar-width", String(sidebarWidth));
+  }, [sidebarWidth]);
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem("diary-root-order");
@@ -71,7 +152,6 @@ export default function Home() {
     } catch {}
   }, []);
 
-  // Sync order when nodes are added or removed (preserve custom order)
   useEffect(() => {
     if (!hydrated) return;
     const allRootIds = Object.values(nodes)
@@ -88,38 +168,20 @@ export default function Home() {
     });
   }, [nodes, hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleDragStart(id: string) {
-    setDraggedId(id);
-  }
+  // Ctrl+Z undo
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag === "TEXTAREA" || tag === "INPUT") return;
+        e.preventDefault();
+        undo();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [undo]);
 
-  function handleDragOver(e: React.DragEvent, id: string) {
-    e.preventDefault();
-    if (id !== draggedId) setDragOverId(id);
-  }
-
-  function handleDrop(targetId: string) {
-    if (!draggedId || draggedId === targetId) return;
-    setRootOrder((prev) => {
-      const ids = prev.length ? prev : roots.map((r) => r.id);
-      const from = ids.indexOf(draggedId);
-      const to = ids.indexOf(targetId);
-      if (from === -1 || to === -1) return prev;
-      const next = [...ids];
-      next.splice(from, 1);
-      next.splice(to, 0, draggedId);
-      localStorage.setItem("diary-root-order", JSON.stringify(next));
-      return next;
-    });
-    setDraggedId(null);
-    setDragOverId(null);
-  }
-
-  function handleDragEnd() {
-    setDraggedId(null);
-    setDragOverId(null);
-  }
-
-  // Load pins from storage
   useEffect(() => {
     try {
       const raw = localStorage.getItem(PINS_KEY);
@@ -127,7 +189,6 @@ export default function Home() {
     } catch {}
   }, []);
 
-  // Auto-lock on tab hide / minimize
   useEffect(() => {
     function onVis() {
       if (document.hidden) setUnlockedIds(new Set());
@@ -140,7 +201,6 @@ export default function Home() {
     };
   }, []);
 
-  // Auto-lock previous thought on deselect
   useEffect(() => {
     const prev = prevRootRef.current;
     if (prev && prev !== selectedRootId) {
@@ -153,7 +213,6 @@ export default function Home() {
     prevRootRef.current = selectedRootId;
   }, [selectedRootId]);
 
-  // Auto-select first root after hydration
   useEffect(() => {
     if (!hydrated) return;
     if (!selectedRootId) {
@@ -164,7 +223,6 @@ export default function Home() {
     }
   }, [hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Handle incoming share URL
   useEffect(() => {
     if (!hydrated) return;
     const shared = decodeShareHash(window.location.hash);
@@ -297,10 +355,96 @@ export default function Home() {
     }
   }
 
-  const isLocked = (id: string | null) => !!id && !!pinsMap[id] && !unlockedIds.has(id);
+  function handleRemovePin(rootId: string) {
+    const next = { ...pinsMap };
+    delete next[rootId];
+    setPinsMap(next);
+    localStorage.setItem(PINS_KEY, JSON.stringify(next));
+    setUnlockedIds((s) => { const n = new Set(s); n.delete(rootId); return n; });
+    toast("PIN removed");
+  }
+
+  function handleExport() {
+    if (!selectedRootId || !nodes[selectedRootId]) return;
+    const data = exportThought(selectedRootId);
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const name = firstLine(nodes[selectedRootId].content) || "untitled";
+    a.download = `thought-${name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string);
+        if (data.version !== 2 || !data.thought) { toast("Invalid backup file"); return; }
+        const id = importThought(data, null);
+        setSelectedRootId(id);
+        toast(`"${firstLine(data.thought.content)}" imported`);
+      } catch {
+        toast("Failed to read file");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  function handleDragStart(id: string) { setDraggedId(id); }
+  function handleDragOver(e: React.DragEvent, id: string) {
+    e.preventDefault();
+    if (id !== draggedId) setDragOverId(id);
+  }
+  function handleDrop(targetId: string) {
+    if (!draggedId || draggedId === targetId) return;
+    setRootOrder((prev) => {
+      const ids = prev.length ? prev : roots.map((r) => r.id);
+      const from = ids.indexOf(draggedId);
+      const to = ids.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      const next = [...ids];
+      next.splice(from, 1);
+      next.splice(to, 0, draggedId);
+      localStorage.setItem("diary-root-order", JSON.stringify(next));
+      return next;
+    });
+    setDraggedId(null);
+    setDragOverId(null);
+  }
+  function handleDragEnd() { setDraggedId(null); setDragOverId(null); }
+
+  function handleResizeMouseDown(e: React.MouseEvent) {
+    resizeRef.current = { active: true, startX: e.clientX, startWidth: sidebarWidth };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  }
+
+  // Swipe to open/close sidebar on mobile
+  function handleMainTouchStart(e: React.TouchEvent) {
+    swipeStartX.current = e.touches[0].clientX;
+  }
+  function handleMainTouchEnd(e: React.TouchEvent) {
+    if (swipeStartX.current === null) return;
+    const startX = swipeStartX.current;
+    const dx = e.changedTouches[0].clientX - startX;
+    swipeStartX.current = null;
+    if (startX < 40 && dx > 50) setSidebarOpen(true);
+    else if (dx < -60) setSidebarOpen(false);
+  }
 
   return (
     <div className="flex h-dvh bg-white dark:bg-gray-950 overflow-hidden">
+
+      {/* Hidden file input for import */}
+      <input ref={importInputRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
 
       {/* Mobile backdrop */}
       {sidebarOpen && (
@@ -311,13 +455,16 @@ export default function Home() {
       )}
 
       {/* Sidebar */}
-      <aside className={[
-        "fixed inset-y-0 left-0 z-30 w-56 flex flex-col",
-        "border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900",
-        "transition-transform duration-200",
-        "md:relative md:inset-auto md:z-auto md:translate-x-0",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full",
-      ].join(" ")}>
+      <aside
+        style={{ width: sidebarWidth }}
+        className={[
+          "fixed inset-y-0 left-0 z-30 flex flex-col shrink-0 relative",
+          "border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900",
+          "transition-transform duration-200",
+          "md:relative md:inset-auto md:z-auto md:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+        ].join(" ")}
+      >
 
         {/* Sidebar header */}
         <div className="px-3 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between shrink-0">
@@ -352,25 +499,56 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Search bar */}
+        <div className="px-2 py-1.5 border-b border-gray-100 dark:border-gray-800 shrink-0">
+          <div className="relative">
+            <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 dark:text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search thoughts…"
+              className="w-full pl-6 pr-6 py-1 text-xs rounded-md bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-violet-400"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Root thought list */}
         <div className="flex-1 overflow-y-auto py-1">
-          {roots.length === 0 ? (
+          {filteredRoots.length === 0 ? (
             <div className="px-4 py-8 text-center">
-              <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">No thoughts yet</p>
-              <button
-                onClick={handleCreateRoot}
-                className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
-              >
-                Create one
-              </button>
+              {searchQuery ? (
+                <p className="text-xs text-gray-400 dark:text-gray-500">No thoughts match</p>
+              ) : (
+                <>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">No thoughts yet</p>
+                  <button onClick={handleCreateRoot} className="text-xs text-violet-600 dark:text-violet-400 hover:underline">
+                    Create one
+                  </button>
+                </>
+              )}
             </div>
           ) : (
-            roots.map((root) => {
+            filteredRoots.map((root) => {
               const isActive = selectedRootId === root.id;
               const locked = isLocked(root.id);
               const hasPin = !!pinsMap[root.id];
               const isDragging = draggedId === root.id;
               const isDragOver = dragOverId === root.id;
+              const nodeCount = countDescendants(root.id);
+              const editedAt = root.updatedAt ?? root.createdAt;
               return (
                 <div
                   key={root.id}
@@ -379,7 +557,7 @@ export default function Home() {
                   onDragOver={(e) => handleDragOver(e, root.id)}
                   onDrop={() => handleDrop(root.id)}
                   onDragEnd={handleDragEnd}
-                  className={`group flex items-center gap-1 mx-1 my-0.5 px-2 py-1 rounded-md transition-colors ${
+                  className={`group flex items-center gap-1 mx-1 my-0.5 px-2 py-1.5 rounded-md transition-colors ${
                     isDragging ? "opacity-40" : ""
                   } ${
                     isDragOver ? "ring-1 ring-violet-400 dark:ring-violet-500" : ""
@@ -397,16 +575,24 @@ export default function Home() {
                   </span>
                   <button
                     onClick={() => handleSelectRoot(root.id)}
-                    className={`flex-1 text-left text-sm truncate py-0.5 ${
-                      isActive
-                        ? "text-violet-700 dark:text-violet-300 font-medium"
-                        : "text-gray-700 dark:text-gray-300"
+                    className={`flex-1 min-w-0 text-left ${
+                      isActive ? "text-violet-700 dark:text-violet-300" : "text-gray-700 dark:text-gray-300"
                     }`}
                   >
-                    {locked
-                      ? <span className="italic text-amber-500 dark:text-amber-400">Locked</span>
-                      : firstLine(root.content) || <span className="italic text-gray-400 dark:text-gray-600">Untitled</span>
-                    }
+                    <div className={`text-sm truncate ${isActive ? "font-medium" : ""}`}>
+                      {locked
+                        ? <span className="italic text-amber-500 dark:text-amber-400">Locked</span>
+                        : firstLine(root.content) || <span className="italic text-gray-400 dark:text-gray-600">Untitled</span>
+                      }
+                    </div>
+                    {!locked && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500">{timeAgo(editedAt)}</span>
+                        {nodeCount > 1 && (
+                          <span className="text-[10px] text-gray-400 dark:text-gray-500">· {nodeCount} nodes</span>
+                        )}
+                      </div>
+                    )}
                   </button>
                   {/* Lock button */}
                   <button
@@ -433,10 +619,33 @@ export default function Home() {
             })
           )}
         </div>
+
+        {/* Sidebar footer: import */}
+        <div className="shrink-0 border-t border-gray-100 dark:border-gray-800 px-3 py-2">
+          <button
+            onClick={() => importInputRef.current?.click()}
+            className="w-full flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors py-1"
+          >
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            Import backup
+          </button>
+        </div>
+
+        {/* Resize handle — desktop only */}
+        <div
+          className="hidden md:block absolute top-0 right-0 bottom-0 w-1 cursor-col-resize hover:bg-violet-400 dark:hover:bg-violet-600 transition-colors"
+          onMouseDown={handleResizeMouseDown}
+        />
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div
+        className="flex-1 flex flex-col min-w-0"
+        onTouchStart={handleMainTouchStart}
+        onTouchEnd={handleMainTouchEnd}
+      >
 
         {/* Topbar — mobile only */}
         <header className="md:hidden shrink-0 flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
@@ -463,42 +672,66 @@ export default function Home() {
           </button>
         </header>
 
-        {/* View toggle + share toast */}
+        {/* Toolbar */}
         {selectedRootId && nodes[selectedRootId] && !isLocked(selectedRootId) && (
-          <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-1">
-            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
-
-              <button
-                onClick={() => setViewMode("tree")}
-                title="Tree view"
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                  viewMode === "tree"
-                    ? "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                }`}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10M4 18h7" />
-                </svg>
-                Tree
-              </button>
-              <button
-                onClick={() => setViewMode("map")}
-                title="Map view"
-                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                  viewMode === "map"
-                    ? "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                }`}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                Map
-              </button>
+          <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-1 gap-2 flex-wrap">
+            {/* Left: view toggle + collapse/expand */}
+            <div className="flex items-center gap-1">
+              <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
+                <button
+                  onClick={() => setViewMode("tree")}
+                  title="Tree view"
+                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    viewMode === "tree"
+                      ? "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10M4 18h7" />
+                  </svg>
+                  Tree
+                </button>
+                <button
+                  onClick={() => setViewMode("map")}
+                  title="Map view"
+                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    viewMode === "map"
+                      ? "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Map
+                </button>
+              </div>
+              {viewMode === "tree" && (
+                <>
+                  <button
+                    onClick={() => setCollapseSignal((s) => s + 1)}
+                    title="Collapse all"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setExpandSignal((s) => s + 1)}
+                    title="Expand all"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </>
+              )}
             </div>
 
-            {/* Add node + Duplicate + Share + Delete */}
+            {/* Right: action buttons */}
             <div className="flex items-center gap-1">
               <button
                 onClick={() => { const newId = handleCreateChild(selectedRootId); setInitialEditId(newId); }}
@@ -537,16 +770,37 @@ export default function Home() {
                   </svg>
                 )}
               </button>
+              <button
+                onClick={handleExport}
+                title="Export to file"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </button>
               {pinsMap[selectedRootId] && (
-                <button
-                  onClick={() => { setPinError(""); setPinDialog({ id: selectedRootId, mode: "change-verify" }); }}
-                  title="Change PIN"
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                  </svg>
-                </button>
+                <>
+                  <button
+                    onClick={() => { setPinError(""); setPinDialog({ id: selectedRootId, mode: "change-verify" }); }}
+                    title="Change PIN"
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleRemovePin(selectedRootId)}
+                    title="Remove PIN"
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3l18 18" />
+                    </svg>
+                  </button>
+                </>
               )}
               <button
                 onClick={() => setShowDeleteConfirm(true)}
@@ -614,6 +868,8 @@ export default function Home() {
               rootId={selectedRootId}
               nodes={nodes}
               initialEditId={initialEditId}
+              collapseSignal={collapseSignal}
+              expandSignal={expandSignal}
               onUpdate={handleUpdateNode}
               onCreateChild={handleCreateChild}
               onDelete={handleDeleteNode}

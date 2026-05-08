@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { DiaryNode, NodesMap } from "./types";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { MarkdownText } from "./MarkdownText";
 
 export function firstLine(content: string): string {
   const line = content.split("\n")[0].trim();
@@ -8,9 +9,9 @@ export function firstLine(content: string): string {
 }
 
 const CHILD_ORDER_KEY = "diary-child-order";
-const COL = 20;  // px per indent level
-const MID = 14;  // vertical midpoint of a row in px (h-7 = 28px → 14px)
-const LX  = 9;   // x of vertical line within each column
+const COL = 20;
+const MID = 14;
+const LX  = 9;
 
 function loadChildOrders(): Record<string, string[]> {
   try {
@@ -27,11 +28,16 @@ function getSortedChildren(parentId: string, nodes: NodesMap, childOrders: Recor
   const all = Object.values(nodes).filter((n) => n.parentId === parentId);
   const order = childOrders[parentId] ?? [];
   const ordered = order.map((id) => all.find((n) => n.id === id)).filter(Boolean) as DiaryNode[];
-  const unseen = all
-    .filter((n) => !order.includes(n.id))
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const unseen = all.filter((n) => !order.includes(n.id)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   return [...ordered, ...unseen];
 }
+
+// Context for expand/collapse all signal
+interface ExpandCtx {
+  collapsedIds: Set<string>;
+  toggle: (id: string) => void;
+}
+const ExpandContext = createContext<ExpandCtx>({ collapsedIds: new Set(), toggle: () => {} });
 
 interface DragState {
   draggedId: string | null;
@@ -69,7 +75,9 @@ function NoteNode({
   onDragStart, onDragOver, onDrop, onDragEnd,
   onTouchDragStart, onTouchDragOver, onTouchDrop,
 }: NodeProps) {
-  const [expanded, setExpanded] = useState(true);
+  const { collapsedIds, toggle } = useContext(ExpandContext);
+  const expanded = !collapsedIds.has(node.id);
+
   const [draft, setDraft] = useState(node.content);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const areaRef = useRef<HTMLTextAreaElement>(null);
@@ -135,11 +143,9 @@ function NoteNode({
       <div
         data-node-id={node.id}
         data-parent-id={node.parentId ?? "null"}
-        className={`flex items-start group relative transition-colors ${
-          isDragging ? "opacity-40" : ""
-        } ${isDragOver ? "rounded-md ring-1 ring-violet-400 dark:ring-violet-500 bg-violet-50/50 dark:bg-violet-900/20" : ""} ${
-          depth === 0 ? "sticky bg-white dark:bg-gray-950" : ""
-        }`}
+        className={`flex items-start group relative transition-colors ${isDragging ? "opacity-40" : ""} ${
+          isDragOver ? "rounded-md ring-1 ring-violet-400 dark:ring-violet-500 bg-violet-50/50 dark:bg-violet-900/20" : ""
+        } ${depth === 0 ? "sticky bg-white dark:bg-gray-950" : ""}`}
         style={depth === 0 ? { top: 0, zIndex: 10 } : undefined}
         draggable={!isEditing}
         onDragStart={(e) => { e.stopPropagation(); onDragStart(node.id, node.parentId); }}
@@ -147,56 +153,36 @@ function NoteNode({
         onDrop={(e) => { e.stopPropagation(); onDrop(node.id, node.parentId); }}
         onDragEnd={(e) => { e.stopPropagation(); onDragEnd(); }}
       >
-        {/* Ancestor vertical lines — self-stretch so height fills the row */}
+        {/* Ancestor vertical lines */}
         {parentLines.map((show, i) => (
           <div key={i} className="shrink-0 relative self-stretch" style={{ width: COL }}>
-            {show && (
-              <div
-                className="absolute w-px bg-gray-200 dark:bg-gray-700"
-                style={{ left: LX, top: 0, bottom: 0 }}
-              />
-            )}
+            {show && <div className="absolute w-px bg-gray-200 dark:bg-gray-700" style={{ left: LX, top: 0, bottom: 0 }} />}
           </div>
         ))}
 
-        {/* Branch connector — self-stretch so height fills the row */}
+        {/* Branch connector */}
         {depth > 0 && (
           <div className="shrink-0 relative self-stretch" style={{ width: COL }}>
-            {/* Vertical: full height for non-last, half for last */}
-            <div
-              className="absolute w-px bg-gray-200 dark:bg-gray-700"
-              style={{ left: LX, top: 0, height: isLast ? MID : "100%" }}
-            />
-            {/* Horizontal: from line center to right edge of column */}
-            <div
-              className="absolute h-px bg-gray-200 dark:bg-gray-700"
-              style={{ left: LX, top: MID, right: 0 }}
-            />
+            <div className="absolute w-px bg-gray-200 dark:bg-gray-700" style={{ left: LX, top: 0, height: isLast ? MID : "100%" }} />
+            <div className="absolute h-px bg-gray-200 dark:bg-gray-700" style={{ left: LX, top: MID, right: 0 }} />
           </div>
         )}
 
         {/* Expand / collapse toggle */}
         <button
-          onClick={() => hasChildren && setExpanded((v) => !v)}
-          className={[
-            "shrink-0 flex items-center justify-center rounded mr-0.5",
-            "w-5 h-7",
-            hasChildren
-              ? "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer"
-              : "cursor-default",
+          onClick={() => hasChildren && toggle(node.id)}
+          className={["shrink-0 flex items-center justify-center rounded mr-0.5 w-5 h-7",
+            hasChildren ? "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer" : "cursor-default",
           ].join(" ")}
         >
-          {hasChildren ? (
-            <svg className={`w-3 h-3 transition-transform ${expanded ? "rotate-90" : ""}`}
-              fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {hasChildren && (
+            <svg className={`w-3 h-3 transition-transform ${expanded ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
             </svg>
-          ) : (
-            <div className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600" />
           )}
         </button>
 
-        {/* Note content — edit mode or display mode */}
+        {/* Note content */}
         <div className="flex-1 min-w-0 py-0.5">
           {isEditing ? (
             <div className="flex flex-col gap-1.5 pr-2 pb-1">
@@ -210,74 +196,50 @@ function NoteNode({
                 className="w-full px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-violet-300 dark:border-violet-600 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-violet-500 leading-relaxed overflow-hidden"
               />
               <div className="flex items-center gap-2">
-                <button
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => onSave(node.id, draft)}
-                  className="px-3 py-1 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-md transition-colors"
-                >
-                  Save
-                </button>
-                <button
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => onCancel(node.id)}
-                  className="px-3 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-md transition-colors"
-                >
-                  Cancel
-                </button>
-                <span className="text-xs text-gray-300 dark:text-gray-600 hidden sm:inline">
-                  Ctrl+Enter · Esc
-                </span>
+                <button onMouseDown={(e) => e.preventDefault()} onClick={() => onSave(node.id, draft)}
+                  className="px-3 py-1 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-md transition-colors">Save</button>
+                <button onMouseDown={(e) => e.preventDefault()} onClick={() => onCancel(node.id)}
+                  className="px-3 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-md transition-colors">Cancel</button>
+                <span className="text-xs text-gray-300 dark:text-gray-600 hidden sm:inline">Ctrl+Enter · Esc</span>
               </div>
             </div>
           ) : (
-            <button
-              onClick={() => onEdit(node.id)}
-              className="w-full text-left px-2 py-1 rounded-md text-sm leading-relaxed text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors whitespace-pre-wrap wrap-break-word"
-            >
-              {node.content || <span className="italic text-gray-300 dark:text-gray-600">Empty note</span>}
+            <button onClick={() => onEdit(node.id)}
+              className="w-full text-left px-2 py-1 rounded-md text-sm leading-relaxed text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+              {node.content
+                ? <MarkdownText content={node.content} />
+                : <span className="italic text-gray-300 dark:text-gray-600">Empty note</span>}
             </button>
           )}
         </div>
 
-        {/* Actions + drag handle — always visible on mobile, hover-only on desktop */}
+        {/* Actions + drag handle */}
         {!isEditing && (
           <div className="shrink-0 flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity self-start mt-0.5">
-            <button
-              onClick={() => onAddChild(node.id)}
-              title="Add child note"
-              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors"
-            >
+            <button onClick={() => onAddChild(node.id)} title="Add child note"
+              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
             </button>
-            <button
-              onClick={() => setShowDeleteDialog(true)}
-              title="Delete"
-              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
-            {/* Drag handle — right side so it doesn't disturb tree line alignment */}
-            <span
-              className="w-6 h-6 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 touch-none"
-              title="Drag to reorder"
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-            >
-              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
-              </svg>
-            </span>
+            {depth > 0 && (
+              <button onClick={() => setShowDeleteDialog(true)} title="Delete"
+                className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
+            {depth > 0 && (
+              <span className="w-6 h-6 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 touch-none" title="Drag to reorder"
+                onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+                </svg>
+              </span>
+            )}
             {showDeleteDialog && (
-              <ConfirmDialog
-                message="Delete this note?"
-                onConfirm={() => onDelete(node.id)}
-                onCancel={() => setShowDeleteDialog(false)}
-              />
+              <ConfirmDialog message="Delete this note?" onConfirm={() => onDelete(node.id)} onCancel={() => setShowDeleteDialog(false)} />
             )}
           </div>
         )}
@@ -287,28 +249,12 @@ function NoteNode({
       {hasChildren && expanded && (
         <div>
           {children.map((child, idx) => (
-            <NoteNode
-              key={child.id}
-              node={child}
-              nodes={nodes}
-              depth={depth + 1}
-              isLast={idx === children.length - 1}
-              parentLines={[...parentLines, !isLast]}
-              editingId={editingId}
-              childOrders={childOrders}
-              drag={drag}
-              onEdit={onEdit}
-              onSave={onSave}
-              onCancel={onCancel}
-              onAddChild={onAddChild}
-              onDelete={onDelete}
-              onDragStart={onDragStart}
-              onDragOver={onDragOver}
-              onDrop={onDrop}
-              onDragEnd={onDragEnd}
-              onTouchDragStart={onTouchDragStart}
-              onTouchDragOver={onTouchDragOver}
-              onTouchDrop={onTouchDrop}
+            <NoteNode key={child.id} node={child} nodes={nodes} depth={depth + 1}
+              isLast={idx === children.length - 1} parentLines={[...parentLines, !isLast]}
+              editingId={editingId} childOrders={childOrders} drag={drag}
+              onEdit={onEdit} onSave={onSave} onCancel={onCancel} onAddChild={onAddChild} onDelete={onDelete}
+              onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}
+              onTouchDragStart={onTouchDragStart} onTouchDragOver={onTouchDragOver} onTouchDrop={onTouchDrop}
             />
           ))}
         </div>
@@ -321,28 +267,26 @@ interface NoteTreeProps {
   rootId: string;
   nodes: NodesMap;
   initialEditId: string | null;
+  collapseSignal: number;
+  expandSignal: number;
   onUpdate: (id: string, content: string) => void;
   onCreateChild: (parentId: string) => string;
   onDelete: (id: string) => void;
 }
 
-export function NoteTree({ rootId, nodes, initialEditId, onUpdate, onCreateChild, onDelete }: NoteTreeProps) {
+export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandSignal, onUpdate, onCreateChild, onDelete }: NoteTreeProps) {
   const [editingId, setEditingId] = useState<string | null>(initialEditId);
   const [childOrders, setChildOrders] = useState<Record<string, string[]>>({});
   const [drag, setDrag] = useState<DragState>({ draggedId: null, dragParentId: null, dragOverId: null });
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    setChildOrders(loadChildOrders());
-  }, []);
+  useEffect(() => { setChildOrders(loadChildOrders()); }, []);
 
-  // Sync child orders when nodes change (remove deleted, add new)
   useEffect(() => {
     setChildOrders((prev) => {
       const next = { ...prev };
       for (const parentId of Object.keys(next)) {
-        const childIds = Object.values(nodes)
-          .filter((n) => n.parentId === parentId)
-          .map((n) => n.id);
+        const childIds = Object.values(nodes).filter((n) => n.parentId === parentId).map((n) => n.id);
         const filtered = next[parentId].filter((id) => childIds.includes(id));
         const unseen = childIds.filter((id) => !filtered.includes(id));
         next[parentId] = [...filtered, ...unseen];
@@ -355,6 +299,18 @@ export function NoteTree({ rootId, nodes, initialEditId, onUpdate, onCreateChild
   useEffect(() => {
     if (initialEditId !== null) setEditingId(initialEditId);
   }, [initialEditId]);
+
+  // Collapse/expand all signals
+  useEffect(() => {
+    if (!collapseSignal) return;
+    const parentIds = new Set(Object.values(nodes).filter((n) => n.parentId !== null).map((n) => n.parentId!));
+    setCollapsedIds(parentIds);
+  }, [collapseSignal]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!expandSignal) return;
+    setCollapsedIds(new Set());
+  }, [expandSignal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const root = nodes[rootId];
   if (!root) return null;
@@ -386,79 +342,51 @@ export function NoteTree({ rootId, nodes, initialEditId, onUpdate, onCreateChild
       const next = [...list];
       next.splice(from, 1);
       next.splice(to, 0, draggedId);
-      const key = parentId ?? rootId;
-      const updated = { ...prev, [key]: next };
+      const updated = { ...prev, [parentId ?? rootId]: next };
       saveChildOrders(updated);
       return updated;
     });
   }
 
-  function handleDragStart(id: string, parentId: string | null) {
-    setDrag({ draggedId: id, dragParentId: parentId, dragOverId: null });
-  }
-
+  function handleDragStart(id: string, parentId: string | null) { setDrag({ draggedId: id, dragParentId: parentId, dragOverId: null }); }
   function handleDragOver(e: React.DragEvent, id: string, parentId: string | null) {
     e.preventDefault();
-    if (id !== drag.draggedId && parentId === drag.dragParentId) {
-      setDrag((d) => ({ ...d, dragOverId: id }));
-    }
+    if (id !== drag.draggedId && parentId === drag.dragParentId) setDrag((d) => ({ ...d, dragOverId: id }));
   }
-
   function handleDrop(targetId: string, parentId: string | null) {
     const { draggedId, dragParentId } = drag;
     if (!draggedId || draggedId === targetId || parentId !== dragParentId) return;
     reorder(draggedId, targetId, parentId);
     setDrag({ draggedId: null, dragParentId: null, dragOverId: null });
   }
-
-  function handleDragEnd() {
-    setDrag({ draggedId: null, dragParentId: null, dragOverId: null });
-  }
-
-  function handleTouchDragStart(id: string, parentId: string | null) {
-    setDrag({ draggedId: id, dragParentId: parentId, dragOverId: null });
-  }
-
+  function handleDragEnd() { setDrag({ draggedId: null, dragParentId: null, dragOverId: null }); }
+  function handleTouchDragStart(id: string, parentId: string | null) { setDrag({ draggedId: id, dragParentId: parentId, dragOverId: null }); }
   function handleTouchDragOver(targetId: string, parentId: string | null) {
-    if (targetId !== drag.draggedId && parentId === drag.dragParentId) {
-      setDrag((d) => ({ ...d, dragOverId: targetId }));
-    }
+    if (targetId !== drag.draggedId && parentId === drag.dragParentId) setDrag((d) => ({ ...d, dragOverId: targetId }));
   }
-
   function handleTouchDrop() {
     const { draggedId, dragOverId, dragParentId } = drag;
-    if (draggedId && dragOverId && draggedId !== dragOverId) {
-      reorder(draggedId, dragOverId, dragParentId);
-    }
+    if (draggedId && dragOverId && draggedId !== dragOverId) reorder(draggedId, dragOverId, dragParentId);
     setDrag({ draggedId: null, dragParentId: null, dragOverId: null });
   }
 
+  const expandCtx: ExpandCtx = {
+    collapsedIds,
+    toggle: (id) => setCollapsedIds((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; }),
+  };
+
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-5 sm:p-8 max-w-2xl">
-        <NoteNode
-          node={root}
-          nodes={nodes}
-          depth={0}
-          isLast={true}
-          parentLines={[]}
-          editingId={editingId}
-          childOrders={childOrders}
-          drag={drag}
-          onEdit={setEditingId}
-          onSave={handleSave}
-          onCancel={handleCancel}
-          onAddChild={handleAddChild}
-          onDelete={onDelete}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-          onDragEnd={handleDragEnd}
-          onTouchDragStart={handleTouchDragStart}
-          onTouchDragOver={handleTouchDragOver}
-          onTouchDrop={handleTouchDrop}
-        />
+    <ExpandContext.Provider value={expandCtx}>
+      <div className="h-full overflow-y-auto">
+        <div className="p-5 sm:p-8 max-w-2xl">
+          <NoteNode node={root} nodes={nodes} depth={0} isLast={true} parentLines={[]}
+            editingId={editingId} childOrders={childOrders} drag={drag}
+            onEdit={setEditingId} onSave={handleSave} onCancel={handleCancel} onAddChild={handleAddChild} onDelete={onDelete}
+            onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} onDragEnd={handleDragEnd}
+            onTouchDragStart={handleTouchDragStart} onTouchDragOver={handleTouchDragOver} onTouchDrop={handleTouchDrop}
+          />
+        </div>
       </div>
-    </div>
+    </ExpandContext.Provider>
   );
 }
