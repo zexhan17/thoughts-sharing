@@ -439,7 +439,7 @@ export default function Home() {
       <aside
         style={{ width: sidebarWidth }}
         className={[
-          "fixed inset-y-0 left-0 z-30 flex flex-col shrink-0 relative",
+          "fixed inset-y-0 left-0 z-30 flex flex-col shrink-0",
           "border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900",
           "transition-transform duration-200",
           "md:relative md:inset-auto md:z-auto md:translate-x-0",
