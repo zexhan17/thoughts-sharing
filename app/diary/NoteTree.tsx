@@ -137,7 +137,10 @@ function NoteNode({
         data-parent-id={node.parentId ?? "null"}
         className={`flex items-start group relative transition-colors ${
           isDragging ? "opacity-40" : ""
-        } ${isDragOver ? "rounded-md ring-1 ring-violet-400 dark:ring-violet-500 bg-violet-50/50 dark:bg-violet-900/20" : ""}`}
+        } ${isDragOver ? "rounded-md ring-1 ring-violet-400 dark:ring-violet-500 bg-violet-50/50 dark:bg-violet-900/20" : ""} ${
+          depth === 0 ? "sticky bg-white dark:bg-gray-950" : ""
+        }`}
+        style={depth === 0 ? { top: 0, zIndex: 10 } : undefined}
         draggable={!isEditing}
         onDragStart={(e) => { e.stopPropagation(); onDragStart(node.id, node.parentId); }}
         onDragOver={(e) => { e.stopPropagation(); onDragOver(e, node.id, node.parentId); }}
