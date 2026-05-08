@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { DiaryNode, NodesMap } from "./types";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { MarkdownText } from "./MarkdownText";
@@ -110,6 +111,8 @@ function NoteNode({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [mobileMenuPos, setMobileMenuPos] = useState({ top: 0, left: 0 });
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -268,91 +271,142 @@ function NoteNode({
           )}
         </div>
 
-        {/* Actions + drag handle */}
+        {/* Actions */}
         {!isEditing && (
-          <div className="shrink-0 flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity self-start mt-0.5">
-            <button onClick={() => onAddChild(node.id)} title="Add child note"
-              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            </button>
-            <button
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const w = 252;
-                const left = Math.max(4, Math.min(rect.left - 80, window.innerWidth - w - 4));
-                setPickerPos({ top: rect.bottom + 4, left });
-                setShowColorPicker((s) => !s);
-              }}
-              title="Node color"
-              className="w-6 h-6 flex items-center justify-center rounded transition-colors"
-              style={{ color: nodeColor ? nodeColor.hex : undefined }}
-            >
-              <svg className={`w-3 h-3 ${nodeColor ? "" : "text-gray-400 dark:text-gray-500"}`} fill="currentColor" viewBox="0 0 16 16">
-                <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm0 14.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zM3 8a1 1 0 1 1 2 0A1 1 0 0 1 3 8zm2-3.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3-2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3 2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm1 3.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />
-              </svg>
-            </button>
-            {depth > 0 && onMove && (
-              <button onClick={() => onMove(node.id)} title="Move node"
+          <>
+            {/* Desktop: icon buttons revealed on hover */}
+            <div className="hidden sm:flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-start mt-0.5">
+              <button onClick={() => onAddChild(node.id)} title="Add child"
                 className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              </button>
+              <button
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const w = 252;
+                  const left = Math.max(4, Math.min(rect.left - 80, window.innerWidth - w - 4));
+                  setPickerPos({ top: rect.bottom + 4, left });
+                  setShowColorPicker((s) => !s);
+                }}
+                title="Color"
+                className="w-6 h-6 flex items-center justify-center rounded transition-colors"
+                style={{ color: nodeColor ? nodeColor.hex : undefined }}
+              >
+                <svg className={`w-3 h-3 ${nodeColor ? "" : "text-gray-400 dark:text-gray-500"}`} fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm0 14.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zM3 8a1 1 0 1 1 2 0A1 1 0 0 1 3 8zm2-3.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3-2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3 2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm1 3.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />
                 </svg>
               </button>
-            )}
-            {depth > 0 && (
-              <button onClick={() => setShowDeleteDialog(true)} title="Delete"
-                className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
+              {depth > 0 && onMove && (
+                <button onClick={() => onMove(node.id)} title="Move"
+                  className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                </button>
+              )}
+              {depth > 0 && (
+                <button onClick={() => setShowDeleteDialog(true)} title="Delete"
+                  className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+              )}
+              {depth > 0 && (
+                <span className="w-6 h-6 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 touch-none"
+                  onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" /></svg>
+                </span>
+              )}
+            </div>
+
+            {/* Mobile: ⋯ button + drag handle */}
+            <div className="flex sm:hidden items-center gap-0.5 self-start mt-0.5">
+              <button
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const menuW = 160;
+                  const left = Math.max(4, Math.min(rect.left - menuW + rect.width, window.innerWidth - menuW - 4));
+                  setMobileMenuPos({ top: rect.bottom + 4, left });
+                  setShowMobileMenu((s) => !s);
+                }}
+                className="w-7 h-7 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-base leading-none"
+              >
+                ···
               </button>
-            )}
-            {depth > 0 && (
-              <span className="w-6 h-6 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 touch-none" title="Drag to reorder"
-                onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
+              {depth > 0 && (
+                <span className="w-7 h-7 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 touch-none"
+                  onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" /></svg>
+                </span>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Dialogs / popovers */}
+        {showDeleteDialog && (
+          <ConfirmDialog message="Delete this note?" onConfirm={() => onDelete(node.id)} onCancel={() => setShowDeleteDialog(false)} />
+        )}
+        {showColorPicker && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowColorPicker(false)} />
+            <div
+              className="fixed z-50 flex items-center gap-1.5 p-2 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 flex-wrap"
+              style={{ top: pickerPos.top, left: pickerPos.left, maxWidth: "calc(100vw - 8px)" }}
+            >
+              {NODE_COLORS.map((c) => (
+                <button key={c.id} onClick={() => { onNodeColorChange(node.id, c.id); setShowColorPicker(false); }}
+                  className="w-5 h-5 rounded-full shrink-0 transition-transform hover:scale-110"
+                  style={{ background: c.tint, outline: nodeColors[node.id] === c.id ? `2px solid ${c.hex}` : "none", outlineOffset: "2px", border: `1.5px solid ${c.hex}` }}
+                />
+              ))}
+              <button onClick={() => { onNodeColorChange(node.id, null); setShowColorPicker(false); }}
+                className="w-5 h-5 rounded-full border-2 border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-400 hover:border-gray-400 transition-colors shrink-0">
+                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+          </>
+        )}
+        {showMobileMenu && createPortal(
+          <>
+            <div className="fixed inset-0 z-[9998]" onClick={() => setShowMobileMenu(false)} />
+            <div
+              className="fixed z-[9999] bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+              style={{ top: mobileMenuPos.top, left: mobileMenuPos.left, minWidth: 160 }}
+            >
+              <button onClick={() => { onAddChild(node.id); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Add child
+              </button>
+              <button onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const w = 252;
+                  const left = Math.max(4, Math.min(rect.left - 80, window.innerWidth - w - 4));
+                  setPickerPos({ top: rect.bottom + 4, left });
+                  setShowMobileMenu(false);
+                  setShowColorPicker(true);
+                }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16" style={{ color: nodeColor ? nodeColor.hex : "#9ca3af" }}>
+                  <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm0 14.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zM3 8a1 1 0 1 1 2 0A1 1 0 0 1 3 8zm2-3.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3-2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3 2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm1 3.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />
                 </svg>
-              </span>
-            )}
-            {showDeleteDialog && (
-              <ConfirmDialog message="Delete this note?" onConfirm={() => onDelete(node.id)} onCancel={() => setShowDeleteDialog(false)} />
-            )}
-            {showColorPicker && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowColorPicker(false)} />
-                <div
-                  className="fixed z-50 flex items-center gap-1.5 p-2 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 flex-wrap"
-                  style={{ top: pickerPos.top, left: pickerPos.left, maxWidth: "calc(100vw - 8px)" }}
-                >
-                  {NODE_COLORS.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => { onNodeColorChange(node.id, c.id); setShowColorPicker(false); }}
-                      className="w-5 h-5 rounded-full shrink-0 transition-transform hover:scale-110"
-                      style={{
-                        background: c.tint,
-                        outline: nodeColors[node.id] === c.id ? `2px solid ${c.hex}` : "none",
-                        outlineOffset: "2px",
-                        border: `1.5px solid ${c.hex}`,
-                      }}
-                    />
-                  ))}
-                  <button
-                    onClick={() => { onNodeColorChange(node.id, null); setShowColorPicker(false); }}
-                    className="w-5 h-5 rounded-full border-2 border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-400 hover:border-gray-400 transition-colors shrink-0"
-                    title="Remove color"
-                  >
-                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+                Color
+              </button>
+              {depth > 0 && onMove && (
+                <button onClick={() => { onMove(node.id); setShowMobileMenu(false); }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                  Move
+                </button>
+              )}
+              {depth > 0 && (
+                <button onClick={() => { setShowMobileMenu(false); setShowDeleteDialog(true); }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  Delete
+                </button>
+              )}
+            </div>
+          </>,
+          document.body
         )}
       </div>
 
