@@ -4,6 +4,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
       { keys: ["?"], desc: "Show this panel" },
       { keys: ["Ctrl", "K"], desc: "Search all nodes" },
       { keys: ["Ctrl", "Z"], desc: "Undo last change" },
+      { keys: ["F"], desc: "Toggle focus mode" },
     ]},
     { label: "Editing", items: [
       { keys: ["Ctrl", "↵"], desc: "Save node" },

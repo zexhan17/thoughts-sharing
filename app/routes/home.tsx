@@ -8,7 +8,23 @@ import { buildShareUrl, decodeShareHash, findExistingRootId } from "../diary/sha
 import { SearchDialog } from "../diary/SearchDialog";
 import { MoveDialog } from "../diary/MoveDialog";
 import { ShortcutsDialog } from "../diary/ShortcutsDialog";
+import { TrashDialog } from "../diary/TrashDialog";
+import type { TrashEntry } from "../diary/TrashDialog";
 import { SEED_THOUGHTS } from "../diary/seedData";
+
+const TRASH_KEY = "diary-trash";
+const COLORS_KEY = "diary-colors";
+
+const LABEL_COLORS = [
+  { id: "red",    hex: "#f87171" },
+  { id: "orange", hex: "#fb923c" },
+  { id: "yellow", hex: "#facc15" },
+  { id: "green",  hex: "#4ade80" },
+  { id: "teal",   hex: "#2dd4bf" },
+  { id: "blue",   hex: "#60a5fa" },
+  { id: "purple", hex: "#a78bfa" },
+  { id: "pink",   hex: "#f472b6" },
+];
 import type { Route } from "./+types/home";
 
 export function meta({}: Route.MetaArgs) {
@@ -57,9 +73,15 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
   const [movingNodeId, setMovingNodeId] = useState<string | null>(null);
   const [showSaved, setShowSaved] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
   const [scrollToId, setScrollToId] = useState<string | null>(null);
+  const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([]);
+  const [colorsMap, setColorsMap] = useState<Record<string, string>>({});
+  const [colorPickerRootId, setColorPickerRootId] = useState<string | null>(null);
+  const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -103,6 +125,14 @@ export default function Home() {
       const w = parseInt(saved);
       if (w >= 224 && w <= 480) setSidebarWidth(w);
     }
+    try {
+      const rawTrash = localStorage.getItem(TRASH_KEY);
+      if (rawTrash) setTrashEntries(JSON.parse(rawTrash));
+    } catch {}
+    try {
+      const rawColors = localStorage.getItem(COLORS_KEY);
+      if (rawColors) setColorsMap(JSON.parse(rawColors));
+    } catch {}
   }, []);
 
   // Sidebar resize (desktop)
@@ -180,6 +210,12 @@ export default function Home() {
         const tag = (e.target as HTMLElement).tagName;
         if (tag === "TEXTAREA" || tag === "INPUT") return;
         setShowShortcuts((s) => !s);
+        return;
+      }
+      if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey) {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag === "TEXTAREA" || tag === "INPUT") return;
+        setFocusMode((s) => !s);
       }
     }
     document.addEventListener("keydown", onKey);
@@ -292,6 +328,19 @@ export default function Home() {
   }
 
   function handleDeleteNode(id: string) {
+    const node = nodes[id];
+    if (node?.parentId === null) {
+      // Soft-delete root thoughts to trash
+      const entry: TrashEntry = {
+        id,
+        snapshot: exportThought(id),
+        deletedAt: new Date().toISOString(),
+        label: firstLine(node.content) || "Untitled",
+      };
+      const nextTrash = [entry, ...trashEntries].slice(0, 50);
+      setTrashEntries(nextTrash);
+      localStorage.setItem(TRASH_KEY, JSON.stringify(nextTrash));
+    }
     deleteNode(id);
     if (pinsMap[id]) {
       const next = { ...pinsMap };
@@ -306,6 +355,35 @@ export default function Home() {
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
       setSelectedRootId(remaining[0]?.id ?? null);
     }
+  }
+
+  function handleRestore(entry: TrashEntry) {
+    const id = importThought(entry.snapshot, null);
+    setSelectedRootId(id);
+    const nextTrash = trashEntries.filter((e) => e.id !== entry.id);
+    setTrashEntries(nextTrash);
+    localStorage.setItem(TRASH_KEY, JSON.stringify(nextTrash));
+    setShowTrash(false);
+    toast(`"${entry.label}" restored`);
+  }
+
+  function handlePermanentDelete(id: string) {
+    const nextTrash = trashEntries.filter((e) => e.id !== id);
+    setTrashEntries(nextTrash);
+    localStorage.setItem(TRASH_KEY, JSON.stringify(nextTrash));
+  }
+
+  function handleClearTrash() {
+    setTrashEntries([]);
+    localStorage.setItem(TRASH_KEY, JSON.stringify([]));
+  }
+
+  function handleColorChange(rootId: string, color: string | null) {
+    const next = { ...colorsMap };
+    if (color) next[rootId] = color; else delete next[rootId];
+    setColorsMap(next);
+    localStorage.setItem(COLORS_KEY, JSON.stringify(next));
+    setColorPickerRootId(null);
   }
 
   function handleCopyShare(rootId: string) {
@@ -536,8 +614,8 @@ export default function Home() {
           "fixed inset-y-0 left-0 z-30 flex flex-col shrink-0",
           "border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900",
           "transition-transform duration-200",
-          "md:relative md:inset-auto md:z-auto md:translate-x-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+          focusMode ? "-translate-x-full" : "md:relative md:inset-auto md:z-auto md:translate-x-0",
+          sidebarOpen && !focusMode ? "translate-x-0" : "-translate-x-full",
         ].join(" ")}
       >
 
@@ -630,6 +708,11 @@ export default function Home() {
                       <path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
                     </svg>
                   </span>
+                  {/* Color dot */}
+                  <span
+                    className="shrink-0 w-2 h-2 rounded-full transition-colors"
+                    style={{ background: colorsMap[root.id] ? LABEL_COLORS.find(c => c.id === colorsMap[root.id])?.hex ?? "transparent" : "transparent" }}
+                  />
                   <button
                     onClick={() => handleSelectRoot(root.id)}
                     className={`flex-1 min-w-0 text-left ${
@@ -689,6 +772,20 @@ export default function Home() {
             </svg>
             Import
           </button>
+          <button
+            onClick={() => setShowTrash(true)}
+            className="w-full flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors py-1"
+          >
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Trash
+            {trashEntries.length > 0 && (
+              <span className="ml-auto text-[10px] bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full px-1.5 py-0.5 leading-none">
+                {trashEntries.length}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Resize handle — desktop only */}
@@ -731,7 +828,7 @@ export default function Home() {
         </header>
 
         {/* Toolbar */}
-        {selectedRootId && nodes[selectedRootId] && !isLocked(selectedRootId) && (
+        {selectedRootId && nodes[selectedRootId] && !isLocked(selectedRootId) && !focusMode && (
           <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-1 gap-2 flex-wrap">
             {/* Left: view toggle + collapse/expand */}
             <div className="flex items-center gap-1">
@@ -810,6 +907,20 @@ export default function Home() {
                 </svg>
               </button>
               <button
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setColorPickerPos({ top: rect.bottom + 6, left: Math.min(window.innerWidth - 220, rect.left - 80) });
+                  setColorPickerRootId(colorPickerRootId === selectedRootId ? null : selectedRootId);
+                }}
+                title="Label color"
+                className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+                style={{ color: colorsMap[selectedRootId] ? LABEL_COLORS.find(c => c.id === colorsMap[selectedRootId])?.hex : undefined }}
+              >
+                <svg className={`w-4 h-4 ${colorsMap[selectedRootId] ? "" : "text-gray-400 dark:text-gray-500"}`} fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.1 0 2-.9 2-2 0-.53-.2-1.01-.52-1.38-.31-.36-.49-.84-.49-1.32 0-1.1.9-2 2-2h2.36c3.09 0 5.65-2.56 5.65-5.65C22.99 6.01 17.99 2 12 2zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5S18.33 11 17.5 11z"/>
+                </svg>
+              </button>
+              <button
                 onClick={() => handleCopyShare(selectedRootId)}
                 title="Copy share link"
                 className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
@@ -860,6 +971,15 @@ export default function Home() {
                   </button>
                 </>
               )}
+              <button
+                onClick={() => setFocusMode(true)}
+                title="Focus mode (F)"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+              </button>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 title="Delete thought"
@@ -998,6 +1118,53 @@ export default function Home() {
         />
       )}
 
+      {/* Focus mode exit button */}
+      {focusMode && (
+        <button
+          onClick={() => setFocusMode(false)}
+          title="Exit focus mode (F)"
+          className="fixed top-4 right-4 z-50 flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-full shadow-md hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          Exit focus
+        </button>
+      )}
+
+      {/* Color picker popover */}
+      {colorPickerRootId && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setColorPickerRootId(null)} />
+          <div
+            className="fixed z-50 flex items-center gap-1.5 p-2 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700"
+            style={{ top: colorPickerPos.top, left: colorPickerPos.left }}
+          >
+            {LABEL_COLORS.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => handleColorChange(colorPickerRootId, c.id)}
+                className="w-5 h-5 rounded-full transition-transform hover:scale-110 shrink-0"
+                style={{
+                  background: c.hex,
+                  outline: colorsMap[colorPickerRootId] === c.id ? `2px solid ${c.hex}` : "none",
+                  outlineOffset: "2px",
+                }}
+              />
+            ))}
+            <button
+              onClick={() => handleColorChange(colorPickerRootId, null)}
+              className="w-5 h-5 rounded-full border-2 border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-400 hover:border-gray-400 transition-colors shrink-0"
+              title="Remove color"
+            >
+              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </>
+      )}
+
       {/* Move dialog */}
       {movingNodeId && (
         <MoveDialog
@@ -1010,6 +1177,17 @@ export default function Home() {
 
       {/* Shortcuts dialog */}
       {showShortcuts && <ShortcutsDialog onClose={() => setShowShortcuts(false)} />}
+
+      {/* Trash dialog */}
+      {showTrash && (
+        <TrashDialog
+          entries={trashEntries}
+          onRestore={handleRestore}
+          onDeletePermanently={handlePermanentDelete}
+          onClearAll={handleClearTrash}
+          onClose={() => setShowTrash(false)}
+        />
+      )}
 
       {/* Auto-save badge */}
       <div className={`fixed bottom-4 right-4 flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-full shadow-lg transition-opacity duration-300 pointer-events-none ${showSaved ? "opacity-100" : "opacity-0"}`}>
