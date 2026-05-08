@@ -41,14 +41,80 @@ export default function Home() {
 
   const prevRootRef = useRef<string | null>(null);
 
-  const roots = Object.values(nodes)
-    .filter((n) => n.parentId === null)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const [rootOrder, setRootOrder] = useState<string[]>([]);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const roots = (() => {
+    const all = Object.values(nodes).filter((n) => n.parentId === null);
+    const ordered = rootOrder
+      .map((id) => all.find((n) => n.id === id))
+      .filter(Boolean) as typeof all;
+    const unseen = all.filter((n) => !rootOrder.includes(n.id))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return [...ordered, ...unseen];
+  })();
 
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains("dark"));
     if (window.innerWidth < 768) setSidebarOpen(false);
   }, []);
+
+  // Load + save root order
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("diary-root-order");
+      if (raw) setRootOrder(JSON.parse(raw));
+    } catch {}
+  }, []);
+
+  // Sync order when nodes are added or removed (preserve custom order)
+  useEffect(() => {
+    if (!hydrated) return;
+    const allRootIds = Object.values(nodes)
+      .filter((n) => n.parentId === null)
+      .map((n) => n.id);
+    setRootOrder((prev) => {
+      const filtered = prev.filter((id) => allRootIds.includes(id));
+      const unseen = allRootIds
+        .filter((id) => !filtered.includes(id))
+        .sort((a, b) => nodes[a].createdAt.localeCompare(nodes[b].createdAt));
+      const next = [...filtered, ...unseen];
+      localStorage.setItem("diary-root-order", JSON.stringify(next));
+      return next;
+    });
+  }, [nodes, hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleDragStart(id: string) {
+    setDraggedId(id);
+  }
+
+  function handleDragOver(e: React.DragEvent, id: string) {
+    e.preventDefault();
+    if (id !== draggedId) setDragOverId(id);
+  }
+
+  function handleDrop(targetId: string) {
+    if (!draggedId || draggedId === targetId) return;
+    setRootOrder((prev) => {
+      const ids = prev.length ? prev : roots.map((r) => r.id);
+      const from = ids.indexOf(draggedId);
+      const to = ids.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      const next = [...ids];
+      next.splice(from, 1);
+      next.splice(to, 0, draggedId);
+      localStorage.setItem("diary-root-order", JSON.stringify(next));
+      return next;
+    });
+    setDraggedId(null);
+    setDragOverId(null);
+  }
+
+  function handleDragEnd() {
+    setDraggedId(null);
+    setDragOverId(null);
+  }
 
   // Load pins from storage
   useEffect(() => {
@@ -281,15 +347,32 @@ export default function Home() {
               const isActive = selectedRootId === root.id;
               const locked = isLocked(root.id);
               const hasPin = !!pinsMap[root.id];
+              const isDragging = draggedId === root.id;
+              const isDragOver = dragOverId === root.id;
               return (
                 <div
                   key={root.id}
+                  draggable
+                  onDragStart={() => handleDragStart(root.id)}
+                  onDragOver={(e) => handleDragOver(e, root.id)}
+                  onDrop={() => handleDrop(root.id)}
+                  onDragEnd={handleDragEnd}
                   className={`group flex items-center gap-1 mx-1 my-0.5 px-2 py-1 rounded-md transition-colors ${
+                    isDragging ? "opacity-40" : ""
+                  } ${
+                    isDragOver ? "ring-1 ring-violet-400 dark:ring-violet-500" : ""
+                  } ${
                     isActive
                       ? "bg-violet-50 dark:bg-violet-900/30"
                       : "hover:bg-gray-100 dark:hover:bg-gray-800"
                   }`}
                 >
+                  {/* Drag handle */}
+                  <span className="shrink-0 flex items-center cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+                    </svg>
+                  </span>
                   <button
                     onClick={() => handleSelectRoot(root.id)}
                     className={`flex-1 text-left text-sm truncate py-0.5 ${
