@@ -9,9 +9,21 @@ export function firstLine(content: string): string {
 }
 
 const CHILD_ORDER_KEY = "diary-child-order";
+const NODE_COLORS_KEY = "diary-node-colors";
 const COL = 20;
 const MID = 14;
 const LX  = 9;
+
+const NODE_COLORS = [
+  { id: "red",    hex: "#f87171", tint: "rgba(248,113,113,0.13)" },
+  { id: "orange", hex: "#fb923c", tint: "rgba(251,146,60,0.13)"  },
+  { id: "yellow", hex: "#facc15", tint: "rgba(250,204,21,0.13)"  },
+  { id: "green",  hex: "#4ade80", tint: "rgba(74,222,128,0.13)"  },
+  { id: "teal",   hex: "#2dd4bf", tint: "rgba(45,212,191,0.13)"  },
+  { id: "blue",   hex: "#60a5fa", tint: "rgba(96,165,250,0.13)"  },
+  { id: "purple", hex: "#a78bfa", tint: "rgba(167,139,250,0.13)" },
+  { id: "pink",   hex: "#f472b6", tint: "rgba(244,114,182,0.13)" },
+];
 
 function loadChildOrders(): Record<string, string[]> {
   try {
@@ -22,6 +34,17 @@ function loadChildOrders(): Record<string, string[]> {
 
 function saveChildOrders(orders: Record<string, string[]>) {
   localStorage.setItem(CHILD_ORDER_KEY, JSON.stringify(orders));
+}
+
+function loadNodeColors(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(NODE_COLORS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function saveNodeColors(colors: Record<string, string>) {
+  localStorage.setItem(NODE_COLORS_KEY, JSON.stringify(colors));
 }
 
 function getSortedChildren(parentId: string, nodes: NodesMap, childOrders: Record<string, string[]>): DiaryNode[] {
@@ -54,6 +77,7 @@ interface NodeProps {
   editingId: string | null;
   highlightId: string | null;
   childOrders: Record<string, string[]>;
+  nodeColors: Record<string, string>;
   drag: DragState;
   onEdit: (id: string) => void;
   onSave: (id: string, content: string) => void;
@@ -62,6 +86,7 @@ interface NodeProps {
   onAddChild: (parentId: string) => void;
   onDelete: (id: string) => void;
   onMove?: (id: string) => void;
+  onNodeColorChange: (nodeId: string, color: string | null) => void;
   onDragStart: (id: string, parentId: string | null) => void;
   onDragOver: (e: React.DragEvent, id: string, parentId: string | null) => void;
   onDrop: (targetId: string, parentId: string | null) => void;
@@ -73,8 +98,8 @@ interface NodeProps {
 
 function NoteNode({
   node, nodes, depth, isLast, parentLines,
-  editingId, highlightId, childOrders, drag,
-  onEdit, onSave, onAutoSave, onCancel, onAddChild, onDelete, onMove,
+  editingId, highlightId, childOrders, nodeColors, drag,
+  onEdit, onSave, onAutoSave, onCancel, onAddChild, onDelete, onMove, onNodeColorChange,
   onDragStart, onDragOver, onDrop, onDragEnd,
   onTouchDragStart, onTouchDragOver, onTouchDrop,
 }: NodeProps) {
@@ -83,11 +108,14 @@ function NoteNode({
 
   const [draft, setDraft] = useState(node.content);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isEditing = editingId === node.id;
   const isHighlighted = highlightId === node.id;
+  const nodeColor = NODE_COLORS.find((c) => c.id === nodeColors[node.id]);
 
   useEffect(() => {
     if (!isHighlighted) return;
@@ -99,6 +127,12 @@ function NoteNode({
 
   const isDragging = drag.draggedId === node.id;
   const isDragOver = drag.dragOverId === node.id && drag.dragParentId === node.parentId && drag.draggedId !== node.id;
+
+  const rowStyle: React.CSSProperties = {};
+  if (depth === 0) { rowStyle.top = 0; rowStyle.zIndex = 10; }
+  if (nodeColor && !isHighlighted && !isDragOver) {
+    rowStyle.backgroundImage = `linear-gradient(${nodeColor.tint}, ${nodeColor.tint})`;
+  }
 
   useEffect(() => {
     if (isEditing) {
@@ -173,8 +207,8 @@ function NoteNode({
         className={`flex items-start group relative transition-colors ${isDragging ? "opacity-40" : ""} ${
           isDragOver ? "rounded-md ring-1 ring-violet-400 dark:ring-violet-500 bg-violet-50/50 dark:bg-violet-900/20" : ""
         } ${isHighlighted ? "rounded-lg ring-2 ring-yellow-400 dark:ring-yellow-500 bg-yellow-50 dark:bg-yellow-900/25" : ""
-        } ${depth === 0 ? "sticky bg-white dark:bg-gray-950" : ""}`}
-        style={depth === 0 ? { top: 0, zIndex: 10 } : undefined}
+        } ${depth === 0 ? "sticky bg-white dark:bg-gray-950" : ""} ${nodeColor && !isHighlighted && !isDragOver ? "rounded-md" : ""}`}
+        style={rowStyle}
         draggable={!isEditing}
         onDragStart={(e) => { e.stopPropagation(); onDragStart(node.id, node.parentId); }}
         onDragOver={(e) => { e.stopPropagation(); onDragOver(e, node.id, node.parentId); }}
@@ -244,6 +278,20 @@ function NoteNode({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
             </button>
+            <button
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setPickerPos({ top: rect.bottom + 4, left: Math.min(window.innerWidth - 230, Math.max(4, rect.left - 80)) });
+                setShowColorPicker((s) => !s);
+              }}
+              title="Node color"
+              className="w-6 h-6 flex items-center justify-center rounded transition-colors"
+              style={{ color: nodeColor ? nodeColor.hex : undefined }}
+            >
+              <svg className={`w-3 h-3 ${nodeColor ? "" : "text-gray-400 dark:text-gray-500"}`} fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm0 14.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zM3 8a1 1 0 1 1 2 0A1 1 0 0 1 3 8zm2-3.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3-2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3 2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm1 3.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+              </svg>
+            </button>
             {depth > 0 && onMove && (
               <button onClick={() => onMove(node.id)} title="Move node"
                 className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors">
@@ -271,6 +319,38 @@ function NoteNode({
             {showDeleteDialog && (
               <ConfirmDialog message="Delete this note?" onConfirm={() => onDelete(node.id)} onCancel={() => setShowDeleteDialog(false)} />
             )}
+            {showColorPicker && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowColorPicker(false)} />
+                <div
+                  className="fixed z-50 flex items-center gap-1.5 p-2 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700"
+                  style={{ top: pickerPos.top, left: pickerPos.left }}
+                >
+                  {NODE_COLORS.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => { onNodeColorChange(node.id, c.id); setShowColorPicker(false); }}
+                      className="w-5 h-5 rounded-full shrink-0 transition-transform hover:scale-110"
+                      style={{
+                        background: c.tint,
+                        outline: nodeColors[node.id] === c.id ? `2px solid ${c.hex}` : "none",
+                        outlineOffset: "2px",
+                        border: `1.5px solid ${c.hex}`,
+                      }}
+                    />
+                  ))}
+                  <button
+                    onClick={() => { onNodeColorChange(node.id, null); setShowColorPicker(false); }}
+                    className="w-5 h-5 rounded-full border-2 border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-400 hover:border-gray-400 transition-colors shrink-0"
+                    title="Remove color"
+                  >
+                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -281,8 +361,8 @@ function NoteNode({
           {children.map((child, idx) => (
             <NoteNode key={child.id} node={child} nodes={nodes} depth={depth + 1}
               isLast={idx === children.length - 1} parentLines={[...parentLines, !isLast]}
-              editingId={editingId} highlightId={highlightId} childOrders={childOrders} drag={drag}
-              onEdit={onEdit} onSave={onSave} onAutoSave={onAutoSave} onCancel={onCancel} onAddChild={onAddChild} onDelete={onDelete} onMove={onMove}
+              editingId={editingId} highlightId={highlightId} childOrders={childOrders} nodeColors={nodeColors} drag={drag}
+              onEdit={onEdit} onSave={onSave} onAutoSave={onAutoSave} onCancel={onCancel} onAddChild={onAddChild} onDelete={onDelete} onMove={onMove} onNodeColorChange={onNodeColorChange}
               onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}
               onTouchDragStart={onTouchDragStart} onTouchDragOver={onTouchDragOver} onTouchDrop={onTouchDrop}
             />
@@ -309,11 +389,13 @@ interface NoteTreeProps {
 export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandSignal, scrollToId, onUpdate, onCreateChild, onDelete, onMove }: NoteTreeProps) {
   const [editingId, setEditingId] = useState<string | null>(initialEditId);
   const [childOrders, setChildOrders] = useState<Record<string, string[]>>({});
+  const [nodeColors, setNodeColors] = useState<Record<string, string>>({});
   const [drag, setDrag] = useState<DragState>({ draggedId: null, dragParentId: null, dragOverId: null });
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [highlightId, setHighlightId] = useState<string | null>(null);
 
   useEffect(() => { setChildOrders(loadChildOrders()); }, []);
+  useEffect(() => { setNodeColors(loadNodeColors()); }, []);
 
   useEffect(() => {
     setChildOrders((prev) => {
@@ -380,6 +462,15 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
     onUpdate(id, content.trim());
   }
 
+  function handleNodeColorChange(nodeId: string, color: string | null) {
+    setNodeColors((prev) => {
+      const next = { ...prev };
+      if (color) next[nodeId] = color; else delete next[nodeId];
+      saveNodeColors(next);
+      return next;
+    });
+  }
+
   function handleCancel(id: string) {
     const node = nodes[id];
     if (node && !node.content.trim()) onDelete(id);
@@ -439,8 +530,8 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
       <div className="h-full overflow-y-auto">
         <div className="p-5 sm:p-8 max-w-2xl">
           <NoteNode node={root} nodes={nodes} depth={0} isLast={true} parentLines={[]}
-            editingId={editingId} highlightId={highlightId} childOrders={childOrders} drag={drag}
-            onEdit={setEditingId} onSave={handleSave} onAutoSave={handleAutoSave} onCancel={handleCancel} onAddChild={handleAddChild} onDelete={onDelete} onMove={onMove}
+            editingId={editingId} highlightId={highlightId} childOrders={childOrders} nodeColors={nodeColors} drag={drag}
+            onEdit={setEditingId} onSave={handleSave} onAutoSave={handleAutoSave} onCancel={handleCancel} onAddChild={handleAddChild} onDelete={onDelete} onMove={onMove} onNodeColorChange={handleNodeColorChange}
             onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} onDragEnd={handleDragEnd}
             onTouchDragStart={handleTouchDragStart} onTouchDragOver={handleTouchDragOver} onTouchDrop={handleTouchDrop}
           />

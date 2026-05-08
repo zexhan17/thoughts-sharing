@@ -76,7 +76,6 @@ export default function Home() {
   const [showTrash, setShowTrash] = useState(false);
   const [movingNodeId, setMovingNodeId] = useState<string | null>(null);
   const [showSaved, setShowSaved] = useState(false);
-  const [focusMode, setFocusMode] = useState(false);
   const [scrollToId, setScrollToId] = useState<string | null>(null);
   const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([]);
   const [colorsMap, setColorsMap] = useState<Record<string, string>>({});
@@ -211,11 +210,6 @@ export default function Home() {
         if (tag === "TEXTAREA" || tag === "INPUT") return;
         setShowShortcuts((s) => !s);
         return;
-      }
-      if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey) {
-        const tag = (e.target as HTMLElement).tagName;
-        if (tag === "TEXTAREA" || tag === "INPUT") return;
-        setFocusMode((s) => !s);
       }
     }
     document.addEventListener("keydown", onKey);
@@ -614,8 +608,8 @@ export default function Home() {
           "fixed inset-y-0 left-0 z-30 flex flex-col shrink-0",
           "border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900",
           "transition-transform duration-200",
-          focusMode ? "-translate-x-full" : "md:relative md:inset-auto md:z-auto md:translate-x-0",
-          sidebarOpen && !focusMode ? "translate-x-0" : "-translate-x-full",
+          "md:relative md:inset-auto md:z-auto md:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
         ].join(" ")}
       >
 
@@ -828,7 +822,7 @@ export default function Home() {
         </header>
 
         {/* Toolbar */}
-        {selectedRootId && nodes[selectedRootId] && !isLocked(selectedRootId) && !focusMode && (
+        {selectedRootId && nodes[selectedRootId] && !isLocked(selectedRootId) && (
           <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-1 gap-2 flex-wrap">
             {/* Left: view toggle + collapse/expand */}
             <div className="flex items-center gap-1">
@@ -972,15 +966,6 @@ export default function Home() {
                 </>
               )}
               <button
-                onClick={() => setFocusMode(true)}
-                title="Focus mode (F)"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                </svg>
-              </button>
-              <button
                 onClick={() => setShowDeleteConfirm(true)}
                 title="Delete thought"
                 className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
@@ -1116,20 +1101,6 @@ export default function Home() {
             setPinDialog({ id: pinDialog.id, mode: "change-verify" });
           } : undefined}
         />
-      )}
-
-      {/* Focus mode exit button */}
-      {focusMode && (
-        <button
-          onClick={() => setFocusMode(false)}
-          title="Exit focus mode (F)"
-          className="fixed top-4 right-4 z-50 flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-full shadow-md hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-          Exit focus
-        </button>
       )}
 
       {/* Color picker popover */}

@@ -1,24 +1,25 @@
 export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
   const groups = [
-    { label: "Global", items: [
-      { keys: ["?"], desc: "Show this panel" },
-      { keys: ["Ctrl", "K"], desc: "Search all nodes" },
-      { keys: ["Ctrl", "Z"], desc: "Undo last change" },
-      { keys: ["F"], desc: "Toggle focus mode" },
-    ]},
-    { label: "Editing", items: [
-      { keys: ["Ctrl", "↵"], desc: "Save node" },
-      { keys: ["Esc"], desc: "Cancel edit" },
-    ]},
-    { label: "Search", items: [
-      { keys: ["↑↓"], desc: "Navigate results" },
-      { keys: ["↵"], desc: "Jump to result" },
-      { keys: ["Esc"], desc: "Close" },
-    ]},
-    { label: "Mobile", items: [
-      { keys: ["Swipe →"], desc: "Open sidebar" },
-      { keys: ["Swipe ←"], desc: "Close sidebar" },
-    ]},
+    {
+      label: "Global", items: [
+        { keys: ["?"], desc: "Show this panel" },
+        { keys: ["Ctrl", "K"], desc: "Search all nodes" },
+        { keys: ["Ctrl", "Z"], desc: "Undo last change" },
+      ]
+    },
+    {
+      label: "Search", items: [
+        { keys: ["↑↓"], desc: "Navigate results" },
+        { keys: ["↵"], desc: "Jump to result" },
+        { keys: ["Esc"], desc: "Close" },
+      ]
+    },
+    {
+      label: "Mobile", items: [
+        { keys: ["Swipe →"], desc: "Open sidebar" },
+        { keys: ["Swipe ←"], desc: "Close sidebar" },
+      ]
+    },
   ];
 
   return (
