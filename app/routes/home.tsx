@@ -26,8 +26,25 @@ async function hashPin(pin: string, nodeId: string): Promise<string> {
 
 const PINS_KEY = "diary-pins";
 
+function validateExportData(data: unknown): data is import("../diary/types").ExportData {
+  if (!data || typeof data !== "object") return false;
+  const d = data as Record<string, unknown>;
+  if (d.version !== 2) return false;
+  if (!d.thought || typeof d.thought !== "object") return false;
+  const t = d.thought as Record<string, unknown>;
+  return typeof t.content === "string" && Array.isArray(t.children);
+}
+
+type BulkExport = { version: "bulk-2"; exportedAt: string; thoughts: import("../diary/types").ExportData[] };
+
+function validateBulkExport(data: unknown): data is BulkExport {
+  if (!data || typeof data !== "object") return false;
+  const d = data as Record<string, unknown>;
+  return d.version === "bulk-2" && Array.isArray(d.thoughts);
+}
+
 export default function Home() {
-  const { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, replaceThought, undo, seedThoughts } = useNodes();
+  const { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, importMany, replaceThought, undo, seedThoughts } = useNodes();
 
   const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
   const [initialEditId, setInitialEditId] = useState<string | null>(null);
@@ -181,12 +198,6 @@ export default function Home() {
     prevRootRef.current = selectedRootId;
   }, [selectedRootId]);
 
-  // Seed sample thoughts on first open (before auto-select so nodes are ready)
-  useEffect(() => {
-    if (!hydrated) return;
-    if (Object.keys(nodes).length === 0) seedThoughts(SEED_THOUGHTS);
-  }, [hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => {
     if (!hydrated) return;
     if (!selectedRootId) {
@@ -334,6 +345,7 @@ export default function Home() {
     setSelectedRootId(rootId);
     setScrollToId(nodeId);
     if (window.innerWidth < 768) setSidebarOpen(false);
+    setTimeout(() => setScrollToId(null), 3000);
   }
 
   function handleRemovePin(rootId: string) {
@@ -360,22 +372,67 @@ export default function Home() {
   }
 
   function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = JSON.parse(ev.target?.result as string);
-        if (data.version !== 2 || !data.thought) { toast("Invalid backup file"); return; }
-        const id = importThought(data, null);
-        setSelectedRootId(id);
-        toast(`"${firstLine(data.thought.content)}" imported`);
-      } catch {
-        toast("Failed to read file");
-      }
-    };
-    reader.readAsText(file);
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
     e.target.value = "";
+
+    const collected: import("../diary/types").ExportData[] = [];
+    let failed = 0;
+    let completed = 0;
+
+    function finish() {
+      if (collected.length === 0) {
+        toast(failed > 0 ? "Import failed — invalid file format" : "No valid data found");
+        return;
+      }
+      const ids = importMany(collected);
+      setSelectedRootId(ids[ids.length - 1]);
+      const msg = collected.length === 1
+        ? `"${firstLine(collected[0].thought.content)}" imported`
+        : `${collected.length} thoughts imported${failed ? `, ${failed} failed` : ""}`;
+      toast(msg);
+    }
+
+    for (const file of files) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target?.result as string);
+          if (validateBulkExport(data)) {
+            const valid = data.thoughts.filter(validateExportData);
+            failed += data.thoughts.length - valid.length;
+            collected.push(...valid);
+          } else if (validateExportData(data)) {
+            collected.push(data);
+          } else {
+            failed++;
+          }
+        } catch {
+          failed++;
+        }
+        completed++;
+        if (completed === files.length) finish();
+      };
+      reader.readAsText(file);
+    }
+  }
+
+  function handleBulkExport() {
+    const exportable = roots.filter((r) => !isLocked(r.id));
+    if (exportable.length === 0) { toast("No unlocked thoughts to export"); return; }
+    const bulk: BulkExport = {
+      version: "bulk-2",
+      exportedAt: new Date().toISOString(),
+      thoughts: exportable.map((r) => exportThought(r.id)),
+    };
+    const blob = new Blob([JSON.stringify(bulk, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `thought-tree-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`${exportable.length} thought${exportable.length !== 1 ? "s" : ""} exported`);
   }
 
   function handleDragStart(id: string) { setDraggedId(id); }
@@ -425,7 +482,7 @@ export default function Home() {
     <div className="flex h-dvh bg-white dark:bg-gray-950 overflow-hidden">
 
       {/* Hidden file input for import */}
-      <input ref={importInputRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
+      <input ref={importInputRef} type="file" accept=".json" multiple className="hidden" onChange={handleImportFile} />
 
       {/* Mobile backdrop */}
       {sidebarOpen && (
@@ -586,7 +643,7 @@ export default function Home() {
             <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
-            Import backup
+            Import
           </button>
         </div>
 

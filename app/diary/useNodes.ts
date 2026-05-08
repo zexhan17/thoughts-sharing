@@ -161,6 +161,24 @@ export function useNodes() {
     [nodes, persist, pushHistory]
   );
 
+  const importMany = useCallback(
+    (dataList: ExportData[]): string[] => {
+      const newNodes = { ...nodes };
+      const rootIds: string[] = [];
+      function insertTree(exported: ExportedNode, parent: string | null): string {
+        const id = generateId();
+        newNodes[id] = { id, content: exported.content, parentId: parent, createdAt: exported.createdAt };
+        for (const child of exported.children) insertTree(child, id);
+        return id;
+      }
+      pushHistory(nodes);
+      for (const data of dataList) rootIds.push(insertTree(data.thought, null));
+      persist(newNodes);
+      return rootIds;
+    },
+    [nodes, persist, pushHistory]
+  );
+
   const seedThoughts = useCallback(
     (roots: ExportedNode[]) => {
       const newNodes = { ...nodes };
@@ -175,5 +193,5 @@ export function useNodes() {
     [nodes, persist]
   );
 
-  return { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, replaceThought, undo, seedThoughts };
+  return { nodes, hydrated, createNode, updateNode, deleteNode, exportThought, importThought, importMany, replaceThought, undo, seedThoughts };
 }
