@@ -96,12 +96,12 @@ export default function Home() {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
-  const [sidebarWidth, setSidebarWidth] = useState(224);
+  const [sidebarWidth, setSidebarWidth] = useState(280);
 
   const prevRootRef = useRef<string | null>(null);
   const swipeStartX = useRef<number | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
-  const resizeRef = useRef<{ active: boolean; startX: number; startWidth: number }>({ active: false, startX: 0, startWidth: 224 });
+  const resizeRef = useRef<{ active: boolean; startX: number; startWidth: number }>({ active: false, startX: 0, startWidth: 280 });
 
   const isLocked = (id: string | null) => !!id && !!pinsMap[id] && !unlockedIds.has(id);
 
@@ -122,7 +122,7 @@ export default function Home() {
     const saved = localStorage.getItem("sidebar-width");
     if (saved) {
       const w = parseInt(saved);
-      if (w >= 224 && w <= 480) setSidebarWidth(w);
+      if (w >= 280 && w <= 480) setSidebarWidth(w);
     }
     try {
       const rawTrash = localStorage.getItem(TRASH_KEY);
@@ -138,7 +138,7 @@ export default function Home() {
   useEffect(() => {
     function onMove(e: MouseEvent) {
       if (!resizeRef.current.active) return;
-      const w = Math.min(480, Math.max(224, resizeRef.current.startWidth + e.clientX - resizeRef.current.startX));
+      const w = Math.min(480, Math.max(280, resizeRef.current.startWidth + e.clientX - resizeRef.current.startX));
       setSidebarWidth(w);
     }
     function onUp() {
