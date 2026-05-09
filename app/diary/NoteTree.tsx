@@ -667,7 +667,7 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
     <HideContext.Provider value={hideCtx}>
       <ExpandContext.Provider value={expandCtx}>
         <div className="h-full overflow-y-auto">
-          <div className="p-5 sm:p-8 max-w-2xl mb-72">
+          <div className="p-5 sm:p-8 max-w-2xl mb-120">
             <div className="flex justify-end mb-2">
               <button
                 onClick={toggleAllHidden}
