@@ -63,6 +63,30 @@ interface ExpandCtx {
 }
 const ExpandContext = createContext<ExpandCtx>({ collapsedIds: new Set(), toggle: () => { } });
 
+function getAllNodeIds(nodeId: string, nodes: NodesMap): string[] {
+  const result: string[] = [nodeId];
+  const children = Object.values(nodes).filter((n) => n.parentId === nodeId);
+  for (const child of children) result.push(...getAllNodeIds(child.id, nodes));
+  return result;
+}
+
+function isEffectivelyHidden(nodeId: string, nodes: NodesMap, hiddenIds: Set<string>): boolean {
+  let curId: string | null = nodeId;
+  while (curId) {
+    if (hiddenIds.has(curId)) return true;
+    const cur: DiaryNode | undefined = nodes[curId];
+    if (!cur) break;
+    curId = cur.parentId;
+  }
+  return false;
+}
+
+interface HideCtx {
+  hiddenIds: Set<string>;
+  toggleHidden: (id: string) => void;
+}
+const HideContext = createContext<HideCtx>({ hiddenIds: new Set(), toggleHidden: () => { } });
+
 interface DragState {
   draggedId: string | null;
   dragParentId: string | null;
@@ -106,6 +130,9 @@ function NoteNode({
 }: NodeProps) {
   const { collapsedIds, toggle } = useContext(ExpandContext);
   const expanded = !collapsedIds.has(node.id);
+  const { hiddenIds, toggleHidden } = useContext(HideContext);
+  const isDirectlyHidden = hiddenIds.has(node.id);
+  const isHidden = isEffectivelyHidden(node.id, nodes, hiddenIds);
 
   const [draft, setDraft] = useState(node.content);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -248,7 +275,7 @@ function NoteNode({
 
         {/* Note content */}
         <div className="flex-1 min-w-0 py-0.5">
-          {isEditing ? (
+          {isEditing && !isHidden ? (
             <div className="pr-2 pb-1">
               <textarea
                 ref={areaRef}
@@ -262,11 +289,14 @@ function NoteNode({
               />
             </div>
           ) : (
-            <button onClick={() => onEdit(node.id)}
-              className="w-full text-left px-2 py-1 rounded-md text-sm leading-relaxed text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-              {node.content
-                ? <MarkdownText content={node.content} />
-                : <span className="italic text-gray-300 dark:text-gray-600">Empty note</span>}
+            <button onClick={() => !isHidden && onEdit(node.id)}
+              className={`w-full text-left px-2 py-1 rounded-md text-sm leading-relaxed text-gray-800 dark:text-gray-200 transition-colors ${isHidden ? "cursor-default" : "hover:bg-gray-100 dark:hover:bg-gray-800"}`}>
+              {isHidden
+                ? <span className="text-gray-400 dark:text-gray-600 select-none tracking-widest">••••••••••</span>
+                : node.content
+                  ? <MarkdownText content={node.content} />
+                  : <span className="italic text-gray-300 dark:text-gray-600">Empty note</span>
+              }
             </button>
           )}
         </div>
@@ -275,7 +305,17 @@ function NoteNode({
         {!isEditing && (
           <>
             {/* Desktop: icon buttons revealed on hover */}
-            <div className="hidden sm:flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-start mt-0.5">
+            <div className={`hidden sm:flex items-center gap-0.5 transition-opacity self-start mt-0.5 ${isDirectlyHidden ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+              {(!isHidden || isDirectlyHidden) && (
+                <button onClick={() => toggleHidden(node.id)} title={isDirectlyHidden ? "Show content" : "Hide content"}
+                  className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${isDirectlyHidden ? "text-violet-500 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/30" : "text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30"}`}>
+                  {isDirectlyHidden ? (
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  )}
+                </button>
+              )}
               <button onClick={() => onAddChild(node.id)} title="Add child"
                 className="w-6 h-6 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -376,14 +416,25 @@ function NoteNode({
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 Add child
               </button>
+              {(!isHidden || isDirectlyHidden) && (
+                <button onClick={() => { toggleHidden(node.id); setShowMobileMenu(false); }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  {isDirectlyHidden ? (
+                    <svg className="w-4 h-4 text-violet-500 dark:text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                  ) : (
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  )}
+                  {isDirectlyHidden ? "Show" : "Hide"}
+                </button>
+              )}
               <button onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const w = 252;
-                  const left = Math.max(4, Math.min(rect.left - 80, window.innerWidth - w - 4));
-                  setPickerPos({ top: rect.bottom + 4, left });
-                  setShowMobileMenu(false);
-                  setShowColorPicker(true);
-                }}
+                const rect = e.currentTarget.getBoundingClientRect();
+                const w = 252;
+                const left = Math.max(4, Math.min(rect.left - 80, window.innerWidth - w - 4));
+                setPickerPos({ top: rect.bottom + 4, left });
+                setShowMobileMenu(false);
+                setShowColorPicker(true);
+              }}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16" style={{ color: nodeColor ? nodeColor.hex : "#9ca3af" }}>
                   <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm0 14.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zM3 8a1 1 0 1 1 2 0A1 1 0 0 1 3 8zm2-3.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3-2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3 2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm1 3.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />
@@ -448,6 +499,7 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
   const [drag, setDrag] = useState<DragState>({ draggedId: null, dragParentId: null, dragOverId: null });
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
 
   useEffect(() => { setChildOrders(loadChildOrders()); }, []);
   useEffect(() => { setNodeColors(loadNodeColors()); }, []);
@@ -575,23 +627,70 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
     setDrag({ draggedId: null, dragParentId: null, dragOverId: null });
   }
 
+  function toggleHidden(id: string) {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+        // Keep direct children hidden so "show parent" only reveals that node
+        Object.values(nodes).filter((n) => n.parentId === id).forEach((child) => next.add(child.id));
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  const allNodeIds = getAllNodeIds(rootId, nodes);
+  const anyHidden = allNodeIds.some((id) => hiddenIds.has(id));
+
+  function toggleAllHidden() {
+    if (anyHidden) {
+      setHiddenIds((prev) => {
+        const next = new Set(prev);
+        allNodeIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setHiddenIds((prev) => new Set([...prev, ...allNodeIds]));
+    }
+  }
+
   const expandCtx: ExpandCtx = {
     collapsedIds,
     toggle: (id) => setCollapsedIds((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; }),
   };
 
+  const hideCtx: HideCtx = { hiddenIds, toggleHidden };
+
   return (
-    <ExpandContext.Provider value={expandCtx}>
-      <div className="h-full overflow-y-auto">
-        <div className="p-5 sm:p-8 max-w-2xl mb-50">
-          <NoteNode node={root} nodes={nodes} depth={0} isLast={true} parentLines={[]}
-            editingId={editingId} highlightId={highlightId} childOrders={childOrders} nodeColors={nodeColors} drag={drag}
-            onEdit={setEditingId} onSave={handleSave} onAutoSave={handleAutoSave} onCancel={handleCancel} onAddChild={handleAddChild} onDelete={onDelete} onMove={onMove} onNodeColorChange={handleNodeColorChange}
-            onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} onDragEnd={handleDragEnd}
-            onTouchDragStart={handleTouchDragStart} onTouchDragOver={handleTouchDragOver} onTouchDrop={handleTouchDrop}
-          />
+    <HideContext.Provider value={hideCtx}>
+      <ExpandContext.Provider value={expandCtx}>
+        <div className="h-full overflow-y-auto">
+          <div className="p-5 sm:p-8 max-w-2xl mb-72">
+            <div className="flex justify-end mb-2">
+              <button
+                onClick={toggleAllHidden}
+                title={anyHidden ? "Show all content" : "Hide all content"}
+                className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-md transition-colors text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                {anyHidden ? (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                )}
+                <span>{anyHidden ? "Show all" : "Hide all"}</span>
+              </button>
+            </div>
+            <NoteNode node={root} nodes={nodes} depth={0} isLast={true} parentLines={[]}
+              editingId={editingId} highlightId={highlightId} childOrders={childOrders} nodeColors={nodeColors} drag={drag}
+              onEdit={setEditingId} onSave={handleSave} onAutoSave={handleAutoSave} onCancel={handleCancel} onAddChild={handleAddChild} onDelete={onDelete} onMove={onMove} onNodeColorChange={handleNodeColorChange}
+              onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} onDragEnd={handleDragEnd}
+              onTouchDragStart={handleTouchDragStart} onTouchDragOver={handleTouchDragOver} onTouchDrop={handleTouchDrop}
+            />
+          </div>
         </div>
-      </div>
-    </ExpandContext.Provider>
+      </ExpandContext.Provider>
+    </HideContext.Provider>
   );
 }
