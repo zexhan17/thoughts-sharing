@@ -36,6 +36,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <body>
         {/* Prevent dark mode flash before React hydrates */}
         <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}})()` }} />
+        <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js',{scope:'/'})})}`}} />
         {children}
         <ScrollRestoration />
         <Scripts />

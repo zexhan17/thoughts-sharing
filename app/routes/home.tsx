@@ -99,7 +99,6 @@ export default function Home() {
   const [sidebarWidth, setSidebarWidth] = useState(280);
 
   const prevRootRef = useRef<string | null>(null);
-  const swipeStartX = useRef<number | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const resizeRef = useRef<{ active: boolean; startX: number; startWidth: number }>({ active: false, startX: 0, startWidth: 280 });
 
@@ -574,18 +573,6 @@ export default function Home() {
     e.preventDefault();
   }
 
-  // Swipe to open/close sidebar on mobile
-  function handleMainTouchStart(e: React.TouchEvent) {
-    swipeStartX.current = e.touches[0].clientX;
-  }
-  function handleMainTouchEnd(e: React.TouchEvent) {
-    if (swipeStartX.current === null) return;
-    const startX = swipeStartX.current;
-    const dx = e.changedTouches[0].clientX - startX;
-    swipeStartX.current = null;
-    if (startX < 40 && dx > 50) setSidebarOpen(true);
-    else if (dx < -60) setSidebarOpen(false);
-  }
 
   return (
     <div className="flex h-dvh bg-white dark:bg-gray-950 overflow-hidden">
@@ -790,11 +777,7 @@ export default function Home() {
       </aside>
 
       {/* Main content */}
-      <div
-        className="flex-1 flex flex-col min-w-0"
-        onTouchStart={handleMainTouchStart}
-        onTouchEnd={handleMainTouchEnd}
-      >
+      <div className="flex-1 flex flex-col min-w-0">
 
         {/* Topbar — mobile only */}
         <header className="md:hidden shrink-0 flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
@@ -811,6 +794,14 @@ export default function Home() {
               ? isLocked(selectedRootId) ? "Locked" : firstLine(nodes[selectedRootId].content) || "Untitled"
               : "Thought Tree"}
           </span>
+          <button
+            onClick={() => setShowSearch(true)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </button>
           <button
             onClick={handleCreateRoot}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors"
