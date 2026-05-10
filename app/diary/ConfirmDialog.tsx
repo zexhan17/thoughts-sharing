@@ -2,12 +2,13 @@ import { useEffect } from "react";
 
 interface ConfirmDialogProps {
   message: string;
+  detail?: string;
   confirmLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-export function ConfirmDialog({ message, confirmLabel = "Delete", onConfirm, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({ message, detail, confirmLabel = "Delete", onConfirm, onCancel }: ConfirmDialogProps) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onCancel();
@@ -18,7 +19,7 @@ export function ConfirmDialog({ message, confirmLabel = "Delete", onConfirm, onC
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-10000 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={onCancel}
     >
       <div
@@ -28,6 +29,11 @@ export function ConfirmDialog({ message, confirmLabel = "Delete", onConfirm, onC
         <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">
           {message}
         </p>
+        {detail && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2 mb-3 line-clamp-2 italic">
+            "{detail}"
+          </p>
+        )}
         <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">
           This will also delete all child notes.
         </p>
