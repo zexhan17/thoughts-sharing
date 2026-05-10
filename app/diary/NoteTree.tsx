@@ -206,6 +206,24 @@ function NoteNode({
     }
   }
 
+  function wrapSelection(prefix: string, suffix = prefix) {
+    const ta = areaRef.current; if (!ta) return;
+    const { selectionStart: s, selectionEnd: e, value } = ta;
+    const selected = value.slice(s, e);
+    const newVal = value.slice(0, s) + prefix + selected + suffix + value.slice(e);
+    setDraft(newVal); scheduleSave(newVal);
+    setTimeout(() => { ta.focus(); ta.setSelectionRange(s + prefix.length, e + prefix.length); }, 0);
+  }
+
+  function prefixLine(prefix: string) {
+    const ta = areaRef.current; if (!ta) return;
+    const pos = ta.selectionStart; const val = ta.value;
+    const lineStart = val.lastIndexOf("\n", pos - 1) + 1;
+    const newVal = val.slice(0, lineStart) + prefix + val.slice(lineStart);
+    setDraft(newVal); scheduleSave(newVal);
+    setTimeout(() => { ta.focus(); ta.setSelectionRange(pos + prefix.length, pos + prefix.length); }, 0);
+  }
+
   function handleTouchStart(e: React.TouchEvent) {
     if (isEditing) return;
     e.stopPropagation();
@@ -273,6 +291,21 @@ function NoteNode({
         <div className="flex-1 min-w-0 py-0.5">
           {isEditing && !isHidden ? (
             <div className="pr-2 pb-1">
+              <div className="flex items-center gap-0.5 mb-1 px-1 py-0.5 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex-wrap">
+                <button type="button" onPointerDown={(e) => { e.preventDefault(); wrapSelection("**"); }} title="Bold" className="px-1.5 py-0.5 text-xs font-bold rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">B</button>
+                <button type="button" onPointerDown={(e) => { e.preventDefault(); wrapSelection("*"); }} title="Italic" className="px-1.5 py-0.5 text-xs italic rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">I</button>
+                <button type="button" onPointerDown={(e) => { e.preventDefault(); wrapSelection("`"); }} title="Code" className="px-1.5 py-0.5 text-xs font-mono rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">{ }</button>
+                <div className="w-px h-3 bg-gray-200 dark:bg-gray-700 mx-0.5" />
+                <button type="button" onPointerDown={(e) => { e.preventDefault(); prefixLine("- [ ] "); }} title="Checklist" className="px-1.5 py-0.5 text-xs rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                </button>
+                <button type="button" onPointerDown={(e) => { e.preventDefault(); prefixLine("- "); }} title="Bullet list" className="px-1.5 py-0.5 text-xs rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                </button>
+                <button type="button" onPointerDown={(e) => { e.preventDefault(); prefixLine("> "); }} title="Quote" className="px-1.5 py-0.5 text-xs rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10.5h.01M12 10.5h.01M16 10.5h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-4 4v-4z" /></svg>
+                </button>
+              </div>
               <textarea
                 ref={areaRef}
                 value={draft}
@@ -290,7 +323,14 @@ function NoteNode({
               {isHidden
                 ? <span className="text-gray-400 dark:text-gray-600 select-none tracking-widest">••••••••••</span>
                 : node.content
-                  ? <MarkdownText content={node.content} />
+                  ? <MarkdownText content={node.content} onToggleCheckbox={(lineIndex) => {
+                      const lines = node.content.split("\n");
+                      const line = lines[lineIndex];
+                      lines[lineIndex] = /^- \[ \]/.test(line)
+                        ? line.replace("- [ ]", "- [x]")
+                        : line.replace(/^- \[[xX]\]/, "- [ ]");
+                      onAutoSave(node.id, lines.join("\n"));
+                    }} />
                   : <span className="italic text-gray-300 dark:text-gray-600">Empty note</span>
               }
             </button>

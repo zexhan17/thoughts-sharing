@@ -13,7 +13,7 @@ function renderInline(text: string): ReactNode[] {
   });
 }
 
-export function MarkdownText({ content }: { content: string }) {
+export function MarkdownText({ content, onToggleCheckbox }: { content: string; onToggleCheckbox?: (lineIndex: number) => void }) {
   const lines = content.split("\n");
   const elements: ReactNode[] = [];
   let listBuffer: ReactNode[] = [];
@@ -29,11 +29,38 @@ export function MarkdownText({ content }: { content: string }) {
   }
 
   lines.forEach((line, i) => {
-    const bullet = line.match(/^[-*] (.+)/);
+    const checklist = line.match(/^- \[([ xX])\] (.*)/);
+    const bullet = !checklist && line.match(/^[-*] (.+)/);
     const numbered = line.match(/^(\d+)\. (.+)/);
     const quote = line.match(/^> (.+)/);
 
-    if (bullet) {
+    if (checklist) {
+      flushList();
+      const checked = checklist[1].toLowerCase() === "x";
+      elements.push(
+        <div key={i} className="flex gap-2 items-start py-px">
+          <button
+            type="button"
+            onClick={onToggleCheckbox ? (e) => { e.stopPropagation(); onToggleCheckbox(i); } : undefined}
+            className={`mt-0.5 shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+              onToggleCheckbox ? "cursor-pointer" : "cursor-default"
+            } ${checked
+              ? "bg-violet-500 border-violet-500"
+              : "border-gray-300 dark:border-gray-600 hover:border-violet-400 dark:hover:border-violet-500"
+            }`}
+          >
+            {checked && (
+              <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </button>
+          <span className={checked ? "line-through text-gray-400 dark:text-gray-500" : ""}>
+            {renderInline(checklist[2])}
+          </span>
+        </div>
+      );
+    } else if (bullet) {
       listBuffer.push(
         <li key={i} className="flex gap-1.5 items-start">
           <span className="mt-1.5 w-1 h-1 rounded-full bg-current shrink-0 opacity-60" />
