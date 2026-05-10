@@ -42,7 +42,13 @@ export function useNodes() {
   const [nodes, setNodes] = useState<NodesMap>({});
   const [hydrated, setHydrated] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState(0);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
   const historyRef = useRef<NodesMap[]>([]);
+  const redoRef = useRef<NodesMap[]>([]);
+  // Stays in sync with the latest nodes value without stale-closure issues
+  const nodesRef = useRef<NodesMap>({});
+  nodesRef.current = nodes;
 
   useEffect(() => {
     const stored = loadFromStorage();
@@ -58,14 +64,31 @@ export function useNodes() {
 
   const pushHistory = useCallback((snapshot: NodesMap) => {
     historyRef.current = [...historyRef.current.slice(-29), snapshot];
+    redoRef.current = [];
+    setCanUndo(true);
+    setCanRedo(false);
   }, []);
 
   const undo = useCallback(() => {
     if (historyRef.current.length === 0) return;
     const prev = historyRef.current[historyRef.current.length - 1];
     historyRef.current = historyRef.current.slice(0, -1);
+    redoRef.current = [...redoRef.current.slice(-29), nodesRef.current];
     setNodes(prev);
     saveToStorage(prev);
+    setCanUndo(historyRef.current.length > 0);
+    setCanRedo(true);
+  }, []);
+
+  const redo = useCallback(() => {
+    if (redoRef.current.length === 0) return;
+    const next = redoRef.current[redoRef.current.length - 1];
+    redoRef.current = redoRef.current.slice(0, -1);
+    historyRef.current = [...historyRef.current.slice(-29), nodesRef.current];
+    setNodes(next);
+    saveToStorage(next);
+    setCanUndo(true);
+    setCanRedo(redoRef.current.length > 0);
   }, []);
 
   const createNode = useCallback(
@@ -204,5 +227,5 @@ export function useNodes() {
     [nodes, persist]
   );
 
-  return { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, moveNode, exportThought, importThought, importMany, replaceThought, undo, seedThoughts };
+  return { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, moveNode, exportThought, importThought, importMany, replaceThought, undo, redo, canUndo, canRedo, seedThoughts };
 }

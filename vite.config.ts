@@ -1,12 +1,26 @@
 import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+
+const swDevBypass: Plugin = {
+  name: "sw-dev-bypass",
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      if (req.url === "/sw.js") {
+        res.setHeader("Content-Type", "application/javascript");
+        res.end("");
+        return;
+      }
+      next();
+    });
+  },
+};
 
 export default defineConfig({
   plugins: [
+    swDevBypass,
     tailwindcss(),
-    reactRouter(),
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: null,
@@ -28,6 +42,7 @@ export default defineConfig({
         navigateFallback: "/index.html",
       },
     }),
+    reactRouter(),
   ],
   resolve: {
     tsconfigPaths: true,

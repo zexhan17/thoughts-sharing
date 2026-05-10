@@ -87,10 +87,17 @@ interface HideCtx {
 }
 const HideContext = createContext<HideCtx>({ hiddenIds: new Set(), toggleHidden: () => { } });
 
+interface DropTarget {
+  parentId: string | null;
+  beforeId: string | null;
+  y: number;
+  depth: number;
+}
+
 interface DragState {
   draggedId: string | null;
   dragParentId: string | null;
-  dragOverId: string | null;
+  drop: DropTarget | null;
 }
 
 interface NodeProps {
@@ -113,11 +120,9 @@ interface NodeProps {
   onMove?: (id: string) => void;
   onNodeColorChange: (nodeId: string, color: string | null) => void;
   onDragStart: (id: string, parentId: string | null) => void;
-  onDragOver: (e: React.DragEvent, id: string, parentId: string | null) => void;
-  onDrop: (targetId: string, parentId: string | null) => void;
   onDragEnd: () => void;
   onTouchDragStart: (id: string, parentId: string | null) => void;
-  onTouchDragOver: (targetId: string, parentId: string | null) => void;
+  onTouchDragMove: (y: number) => void;
   onTouchDrop: () => void;
 }
 
@@ -125,8 +130,8 @@ function NoteNode({
   node, nodes, depth, isLast, parentLines,
   editingId, highlightId, childOrders, nodeColors, drag,
   onEdit, onSave, onAutoSave, onCancel, onAddChild, onDelete, onMove, onNodeColorChange,
-  onDragStart, onDragOver, onDrop, onDragEnd,
-  onTouchDragStart, onTouchDragOver, onTouchDrop,
+  onDragStart, onDragEnd,
+  onTouchDragStart, onTouchDragMove, onTouchDrop,
 }: NodeProps) {
   const { collapsedIds, toggle } = useContext(ExpandContext);
   const expanded = !collapsedIds.has(node.id);
@@ -156,11 +161,10 @@ function NoteNode({
   const hasChildren = children.length > 0;
 
   const isDragging = drag.draggedId === node.id;
-  const isDragOver = drag.dragOverId === node.id && drag.dragParentId === node.parentId && drag.draggedId !== node.id;
 
   const rowStyle: React.CSSProperties = {};
   if (hasChildren) { rowStyle.top = depth * 30; rowStyle.zIndex = Math.max(1, 10 - depth); }
-  if (nodeColor && !isHighlighted && !isDragOver) {
+  if (nodeColor && !isHighlighted) {
     rowStyle.backgroundImage = `linear-gradient(${nodeColor.tint}, ${nodeColor.tint})`;
   }
 
@@ -212,14 +216,7 @@ function NoteNode({
     if (!drag.draggedId) return;
     e.preventDefault();
     e.stopPropagation();
-    const touch = e.touches[0];
-    const el = document.elementFromPoint(touch.clientX, touch.clientY);
-    if (!el) return;
-    const row = el.closest("[data-node-id]") as HTMLElement | null;
-    if (!row) return;
-    const targetId = row.dataset.nodeId!;
-    const targetParentId = row.dataset.parentId ?? null;
-    onTouchDragOver(targetId, targetParentId === "null" ? null : targetParentId);
+    onTouchDragMove(e.touches[0].clientY);
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
@@ -234,14 +231,13 @@ function NoteNode({
         ref={rowRef}
         data-node-id={node.id}
         data-parent-id={node.parentId ?? "null"}
-        className={`flex items-start group relative transition-colors ${isDragging ? "opacity-40" : ""} ${isDragOver ? "rounded-md ring-1 ring-violet-400 dark:ring-violet-500 bg-violet-50/50 dark:bg-violet-900/20" : ""
+        className={`flex items-start group relative transition-colors ${isDragging ? "opacity-40" : ""
           } ${isHighlighted ? "rounded-lg ring-2 ring-yellow-400 dark:ring-yellow-500 bg-yellow-50 dark:bg-yellow-900/25" : ""
-          } ${hasChildren ? "sticky bg-white dark:bg-gray-950" : ""} ${nodeColor && !isHighlighted && !isDragOver ? "rounded-md" : ""}`}
+          } ${hasChildren ? "sticky bg-white dark:bg-gray-950" : ""} ${nodeColor && !isHighlighted ? "rounded-md" : ""}`}
         style={rowStyle}
+        data-depth={depth}
         draggable={!isEditing}
         onDragStart={(e) => { e.stopPropagation(); onDragStart(node.id, node.parentId); }}
-        onDragOver={(e) => { e.stopPropagation(); onDragOver(e, node.id, node.parentId); }}
-        onDrop={(e) => { e.stopPropagation(); onDrop(node.id, node.parentId); }}
         onDragEnd={(e) => { e.stopPropagation(); onDragEnd(); }}
       >
         {/* Ancestor vertical lines */}
@@ -470,8 +466,8 @@ function NoteNode({
               isLast={idx === children.length - 1} parentLines={[...parentLines, !isLast]}
               editingId={editingId} highlightId={highlightId} childOrders={childOrders} nodeColors={nodeColors} drag={drag}
               onEdit={onEdit} onSave={onSave} onAutoSave={onAutoSave} onCancel={onCancel} onAddChild={onAddChild} onDelete={onDelete} onMove={onMove} onNodeColorChange={onNodeColorChange}
-              onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onDragEnd={onDragEnd}
-              onTouchDragStart={onTouchDragStart} onTouchDragOver={onTouchDragOver} onTouchDrop={onTouchDrop}
+              onDragStart={onDragStart} onDragEnd={onDragEnd}
+              onTouchDragStart={onTouchDragStart} onTouchDragMove={onTouchDragMove} onTouchDrop={onTouchDrop}
             />
           ))}
         </div>
@@ -486,18 +482,23 @@ interface NoteTreeProps {
   initialEditId: string | null;
   collapseSignal: number;
   expandSignal: number;
+  hideSignal: number;
+  revealSignal: number;
   scrollToId?: string | null;
   onUpdate: (id: string, content: string) => void;
   onCreateChild: (parentId: string) => string;
   onDelete: (id: string) => void;
   onMove?: (nodeId: string) => void;
+  onReparent?: (nodeId: string, newParentId: string | null) => void;
+  onAnyHiddenChange?: (anyHidden: boolean) => void;
 }
 
-export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandSignal, scrollToId, onUpdate, onCreateChild, onDelete, onMove }: NoteTreeProps) {
+export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandSignal, hideSignal, revealSignal, scrollToId, onUpdate, onCreateChild, onDelete, onMove, onReparent, onAnyHiddenChange }: NoteTreeProps) {
   const [editingId, setEditingId] = useState<string | null>(initialEditId);
   const [childOrders, setChildOrders] = useState<Record<string, string[]>>({});
   const [nodeColors, setNodeColors] = useState<Record<string, string>>({});
-  const [drag, setDrag] = useState<DragState>({ draggedId: null, dragParentId: null, dragOverId: null });
+  const [drag, setDrag] = useState<DragState>({ draggedId: null, dragParentId: null, drop: null });
+  const containerRef = useRef<HTMLDivElement>(null);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
@@ -534,6 +535,20 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
     if (!expandSignal) return;
     setCollapsedIds(new Set());
   }, [expandSignal]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!hideSignal) return;
+    setHiddenIds((prev) => new Set([...prev, ...getAllNodeIds(rootId, nodes)]));
+  }, [hideSignal]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!revealSignal) return;
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      getAllNodeIds(rootId, nodes).forEach((id) => next.delete(id));
+      return next;
+    });
+  }, [revealSignal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll-to + highlight
   useEffect(() => {
@@ -590,42 +605,76 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
     setEditingId(newId);
   }
 
-  function reorder(draggedId: string, targetId: string, parentId: string | null) {
+  function calcDropTarget(mouseY: number, draggedId: string): DropTarget | null {
+    const rows = Array.from(containerRef.current?.querySelectorAll("[data-node-id]") ?? []) as HTMLElement[];
+    const excluded = new Set(getAllNodeIds(draggedId, nodes));
+    const valid = rows.filter(r => !excluded.has(r.dataset.nodeId!));
+    if (!valid.length) return null;
+    const entries = valid.map(r => {
+      const rect = r.getBoundingClientRect();
+      return {
+        id: r.dataset.nodeId!,
+        parentId: r.dataset.parentId === "null" ? null : (r.dataset.parentId ?? null),
+        depth: parseInt(r.dataset.depth ?? "0"),
+        top: rect.top, bottom: rect.bottom, mid: (rect.top + rect.bottom) / 2,
+      };
+    });
+    if (mouseY <= entries[0].mid)
+      return { parentId: entries[0].parentId, beforeId: entries[0].id, y: entries[0].top, depth: entries[0].depth };
+    for (let i = 0; i < entries.length - 1; i++) {
+      if (mouseY > entries[i].mid && mouseY <= entries[i + 1].mid)
+        return { parentId: entries[i + 1].parentId, beforeId: entries[i + 1].id, y: (entries[i].bottom + entries[i + 1].top) / 2, depth: entries[i + 1].depth };
+    }
+    const last = entries[entries.length - 1];
+    return { parentId: last.parentId, beforeId: null, y: last.bottom, depth: last.depth };
+  }
+
+  function commitDrop(draggedId: string, dragParentId: string | null, drop: DropTarget) {
+    const isSameParent = drop.parentId === dragParentId;
+    if (!isSameParent) onReparent?.(draggedId, drop.parentId);
     setChildOrders((prev) => {
-      const siblings = getSortedChildren(parentId ?? rootId, nodes, prev).map((n) => n.id);
-      const list = siblings.includes(draggedId) ? siblings : [...siblings, draggedId];
-      const from = list.indexOf(draggedId);
-      const to = list.indexOf(targetId);
-      if (from === -1 || to === -1) return prev;
-      const next = [...list];
-      next.splice(from, 1);
-      next.splice(to, 0, draggedId);
-      const updated = { ...prev, [parentId ?? rootId]: next };
+      const key = drop.parentId ?? rootId;
+      const siblings = getSortedChildren(drop.parentId ?? rootId, nodes, prev)
+        .map(n => n.id).filter(id => id !== draggedId);
+      const at = drop.beforeId !== null ? siblings.indexOf(drop.beforeId) : siblings.length;
+      const next = [...siblings];
+      next.splice(at === -1 ? siblings.length : at, 0, draggedId);
+      const updated = { ...prev, [key]: next };
       saveChildOrders(updated);
       return updated;
     });
   }
 
-  function handleDragStart(id: string, parentId: string | null) { setDrag({ draggedId: id, dragParentId: parentId, dragOverId: null }); }
-  function handleDragOver(e: React.DragEvent, id: string, parentId: string | null) {
+  function handleDragStart(id: string, parentId: string | null) { setDrag({ draggedId: id, dragParentId: parentId, drop: null }); }
+  function handleDragEnd() { setDrag({ draggedId: null, dragParentId: null, drop: null }); }
+
+  function handleContainerDragOver(e: React.DragEvent) {
     e.preventDefault();
-    if (id !== drag.draggedId && parentId === drag.dragParentId) setDrag((d) => ({ ...d, dragOverId: id }));
+    if (!drag.draggedId) return;
+    const drop = calcDropTarget(e.clientY, drag.draggedId);
+    setDrag(d => ({ ...d, drop }));
   }
-  function handleDrop(targetId: string, parentId: string | null) {
-    const { draggedId, dragParentId } = drag;
-    if (!draggedId || draggedId === targetId || parentId !== dragParentId) return;
-    reorder(draggedId, targetId, parentId);
-    setDrag({ draggedId: null, dragParentId: null, dragOverId: null });
+  function handleContainerDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const { draggedId, dragParentId, drop } = drag;
+    if (draggedId && drop) commitDrop(draggedId, dragParentId, drop);
+    setDrag({ draggedId: null, dragParentId: null, drop: null });
   }
-  function handleDragEnd() { setDrag({ draggedId: null, dragParentId: null, dragOverId: null }); }
-  function handleTouchDragStart(id: string, parentId: string | null) { setDrag({ draggedId: id, dragParentId: parentId, dragOverId: null }); }
-  function handleTouchDragOver(targetId: string, parentId: string | null) {
-    if (targetId !== drag.draggedId && parentId === drag.dragParentId) setDrag((d) => ({ ...d, dragOverId: targetId }));
+  function handleContainerDragLeave(e: React.DragEvent) {
+    if (!containerRef.current?.contains(e.relatedTarget as Node))
+      setDrag(d => ({ ...d, drop: null }));
+  }
+
+  function handleTouchDragStart(id: string, parentId: string | null) { setDrag({ draggedId: id, dragParentId: parentId, drop: null }); }
+  function handleTouchDragMove(y: number) {
+    if (!drag.draggedId) return;
+    const drop = calcDropTarget(y, drag.draggedId);
+    setDrag(d => ({ ...d, drop }));
   }
   function handleTouchDrop() {
-    const { draggedId, dragOverId, dragParentId } = drag;
-    if (draggedId && dragOverId && draggedId !== dragOverId) reorder(draggedId, dragOverId, dragParentId);
-    setDrag({ draggedId: null, dragParentId: null, dragOverId: null });
+    const { draggedId, dragParentId, drop } = drag;
+    if (draggedId && drop) commitDrop(draggedId, dragParentId, drop);
+    setDrag({ draggedId: null, dragParentId: null, drop: null });
   }
 
   function toggleHidden(id: string) {
@@ -645,17 +694,7 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
   const allNodeIds = getAllNodeIds(rootId, nodes);
   const anyHidden = allNodeIds.some((id) => hiddenIds.has(id));
 
-  function toggleAllHidden() {
-    if (anyHidden) {
-      setHiddenIds((prev) => {
-        const next = new Set(prev);
-        allNodeIds.forEach((id) => next.delete(id));
-        return next;
-      });
-    } else {
-      setHiddenIds((prev) => new Set([...prev, ...allNodeIds]));
-    }
-  }
+  useEffect(() => { onAnyHiddenChange?.(anyHidden); }, [anyHidden]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const expandCtx: ExpandCtx = {
     collapsedIds,
@@ -664,33 +703,37 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
 
   const hideCtx: HideCtx = { hiddenIds, toggleHidden };
 
+  const containerRect = drag.drop ? containerRef.current?.getBoundingClientRect() : null;
+
   return (
     <HideContext.Provider value={hideCtx}>
       <ExpandContext.Provider value={expandCtx}>
-        <div className="h-full overflow-y-auto">
+        <div
+          ref={containerRef}
+          className="h-full overflow-y-auto"
+          onDragOver={handleContainerDragOver}
+          onDrop={handleContainerDrop}
+          onDragLeave={handleContainerDragLeave}
+        >
           <div className="p-5 sm:p-8 max-w-2xl mb-120">
-            <div className="flex justify-end mb-2">
-              <button
-                onClick={toggleAllHidden}
-                title={anyHidden ? "Show all content" : "Hide all content"}
-                className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-md transition-colors text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                {anyHidden ? (
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                ) : (
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                )}
-                <span>{anyHidden ? "Show all" : "Hide all"}</span>
-              </button>
-            </div>
             <NoteNode node={root} nodes={nodes} depth={0} isLast={true} parentLines={[]}
               editingId={editingId} highlightId={highlightId} childOrders={childOrders} nodeColors={nodeColors} drag={drag}
               onEdit={setEditingId} onSave={handleSave} onAutoSave={handleAutoSave} onCancel={handleCancel} onAddChild={handleAddChild} onDelete={onDelete} onMove={onMove} onNodeColorChange={handleNodeColorChange}
-              onDragStart={handleDragStart} onDragOver={handleDragOver} onDrop={handleDrop} onDragEnd={handleDragEnd}
-              onTouchDragStart={handleTouchDragStart} onTouchDragOver={handleTouchDragOver} onTouchDrop={handleTouchDrop}
+              onDragStart={handleDragStart} onDragEnd={handleDragEnd}
+              onTouchDragStart={handleTouchDragStart} onTouchDragMove={handleTouchDragMove} onTouchDrop={handleTouchDrop}
             />
           </div>
         </div>
+        {drag.drop && containerRect && createPortal(
+          <div
+            className="fixed pointer-events-none z-9999 flex items-center gap-0"
+            style={{ top: drag.drop.y - 1, left: containerRect.left + (drag.drop.depth + 1) * COL, right: containerRect.right > 0 ? window.innerWidth - containerRect.right + 8 : 8 }}
+          >
+            <div className="w-2 h-2 rounded-full bg-violet-500 shrink-0 -ml-1" />
+            <div className="flex-1 h-0.5 bg-violet-500" />
+          </div>,
+          document.body
+        )}
       </ExpandContext.Provider>
     </HideContext.Provider>
   );
