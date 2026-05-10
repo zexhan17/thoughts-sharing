@@ -62,7 +62,7 @@ function validateBulkExport(data: unknown): data is BulkExport {
 }
 
 export default function Home() {
-  const { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, moveNode, exportThought, importThought, importMany, replaceThought, undo, redo, canUndo, canRedo, seedThoughts } = useNodes();
+  const { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, deleteMany, moveNode, exportThought, importThought, importMany, replaceThought, undo, redo, canUndo, canRedo, seedThoughts } = useNodes();
 
   const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
   const [initialEditId, setInitialEditId] = useState<string | null>(null);
@@ -94,6 +94,11 @@ export default function Home() {
   const [hideSignal, setHideSignal] = useState(0);
   const [revealSignal, setRevealSignal] = useState(0);
   const [anyHidden, setAnyHidden] = useState(false);
+
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
 
   const [rootOrder, setRootOrder] = useState<string[]>([]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -360,6 +365,72 @@ export default function Home() {
     }
   }
 
+  function startLongPress(id: string, e: React.PointerEvent) {
+    longPressOrigin.current = { x: e.clientX, y: e.clientY };
+    longPressTimer.current = setTimeout(() => {
+      setSelectionMode(true);
+      setSelectedIds(new Set([id]));
+      try { navigator.vibrate?.(50); } catch { /* ignore */ }
+    }, 500);
+  }
+
+  function cancelLongPress() {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    longPressOrigin.current = null;
+  }
+
+  function checkLongPressMove(e: React.PointerEvent) {
+    if (!longPressOrigin.current) return;
+    const dx = e.clientX - longPressOrigin.current.x;
+    const dy = e.clientY - longPressOrigin.current.y;
+    if (dx * dx + dy * dy > 64) cancelLongPress(); // 8px threshold
+  }
+
+  function handleToggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function exitSelectionMode() {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  }
+
+  function handleDeleteSelected() {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    // Trash each root
+    for (const id of ids) {
+      const node = nodes[id];
+      if (node?.parentId === null) {
+        const entry: TrashEntry = {
+          id,
+          snapshot: exportThought(id),
+          deletedAt: new Date().toISOString(),
+          label: firstLine(node.content) || "Untitled",
+        };
+        setTrashEntries((prev) => [entry, ...prev].slice(0, 50));
+        localStorage.setItem(TRASH_KEY, JSON.stringify([entry, ...trashEntries].slice(0, 50)));
+      }
+      if (pinsMap[id]) {
+        const next = { ...pinsMap };
+        delete next[id];
+        setPinsMap(next);
+        localStorage.setItem(PINS_KEY, JSON.stringify(next));
+      }
+    }
+    setUnlockedIds((prev) => { const next = new Set(prev); ids.forEach((id) => next.delete(id)); return next; });
+    deleteMany(ids);
+    if (selectedIds.has(selectedRootId ?? "")) {
+      const remaining = Object.values(nodes).filter((n) => n.parentId === null && !selectedIds.has(n.id));
+      setSelectedRootId(remaining[0]?.id ?? null);
+    }
+    exitSelectionMode();
+  }
+
   function handleRestore(entry: TrashEntry) {
     const id = importThought(entry.snapshot, null);
     setSelectedRootId(id);
@@ -612,51 +683,82 @@ export default function Home() {
 
         {/* Sidebar header */}
         <div className="px-3 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between shrink-0">
-          <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-            Thoughts
-          </span>
-          <div className="flex items-center gap-0.5">
-            <button
-              onClick={() => setShowSearch(true)}
-              title="Search (Ctrl+K)"
-              className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setShowShortcuts(true)}
-              title="Keyboard shortcuts (?)"
-              className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-bold"
-            >
-              ?
-            </button>
-            <button
-              onClick={toggleDark}
-              title={isDark ? "Light mode" : "Dark mode"}
-              className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              {isDark ? (
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-              ) : (
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-              )}
-            </button>
-            <button
-              onClick={handleCreateRoot}
-              title="New thought"
-              className="w-7 h-7 flex items-center justify-center rounded-md text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            </button>
-          </div>
+          {selectionMode ? (
+            <>
+              <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                {selectedIds.size} selected
+              </span>
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={handleDeleteSelected}
+                  disabled={selectedIds.size === 0}
+                  title="Delete selected"
+                  className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors ${selectedIds.size > 0 ? "text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30" : "text-gray-200 dark:text-gray-700 cursor-not-allowed"}`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+                <button
+                  onClick={exitSelectionMode}
+                  title="Cancel"
+                  className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                Thoughts
+              </span>
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={() => setShowSearch(true)}
+                  title="Search (Ctrl+K)"
+                  className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setShowShortcuts(true)}
+                  title="Keyboard shortcuts (?)"
+                  className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-bold"
+                >
+                  ?
+                </button>
+                <button
+                  onClick={toggleDark}
+                  title={isDark ? "Light mode" : "Dark mode"}
+                  className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  {isDark ? (
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  onClick={handleCreateRoot}
+                  title="New thought"
+                  className="w-7 h-7 flex items-center justify-center rounded-md text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Root thought list */}
@@ -675,68 +777,92 @@ export default function Home() {
               const hasPin = !!pinsMap[root.id];
               const isDragging = draggedId === root.id;
               const isDragOver = dragOverId === root.id;
+              const isSelected = selectedIds.has(root.id);
               return (
                 <div
                   key={root.id}
-                  draggable
-                  onDragStart={() => handleDragStart(root.id)}
-                  onDragOver={(e) => handleDragOver(e, root.id)}
-                  onDrop={() => handleDrop(root.id)}
-                  onDragEnd={handleDragEnd}
-                  className={`group flex items-center gap-1 mx-1 my-0.5 px-2 py-1.5 rounded-md transition-colors ${
-                    isDragging ? "opacity-40" : ""
+                  draggable={!selectionMode}
+                  onDragStart={() => { cancelLongPress(); handleDragStart(root.id); }}
+                  onDragOver={selectionMode ? undefined : (e) => handleDragOver(e, root.id)}
+                  onDrop={selectionMode ? undefined : () => handleDrop(root.id)}
+                  onDragEnd={selectionMode ? undefined : handleDragEnd}
+                  onPointerDown={(e) => startLongPress(root.id, e)}
+                  onPointerMove={checkLongPressMove}
+                  onPointerUp={cancelLongPress}
+                  onPointerCancel={cancelLongPress}
+                  onPointerLeave={cancelLongPress}
+                  onClick={selectionMode ? () => handleToggleSelect(root.id) : undefined}
+                  className={`group flex items-center gap-1 mx-1 my-0.5 px-2 py-1.5 rounded-md transition-colors select-none ${
+                    !selectionMode && isDragging ? "opacity-40" : ""
                   } ${
-                    isDragOver ? "ring-1 ring-violet-400 dark:ring-violet-500" : ""
+                    !selectionMode && isDragOver ? "ring-1 ring-violet-400 dark:ring-violet-500" : ""
                   } ${
-                    isActive
-                      ? "bg-violet-50 dark:bg-violet-900/30"
-                      : "hover:bg-gray-100 dark:hover:bg-gray-800"
-                  }`}
+                    selectionMode
+                      ? isSelected
+                        ? "bg-violet-50 dark:bg-violet-900/30"
+                        : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                      : isActive
+                        ? "bg-violet-50 dark:bg-violet-900/30"
+                        : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                  } ${selectionMode ? "cursor-pointer" : ""}`}
                 >
-                  {/* Drag handle */}
-                  <span className="shrink-0 flex items-center cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
-                    </svg>
-                  </span>
+                  {selectionMode ? (
+                    /* Checkbox */
+                    <span className={`shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${isSelected ? "bg-violet-500 border-violet-500" : "border-gray-300 dark:border-gray-600"}`}>
+                      {isSelected && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </span>
+                  ) : (
+                    /* Drag handle */
+                    <span className="shrink-0 flex items-center cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+                      </svg>
+                    </span>
+                  )}
                   {/* Color dot */}
                   <span
                     className="shrink-0 w-2 h-2 rounded-full transition-colors"
                     style={{ background: colorsMap[root.id] ? LABEL_COLORS.find(c => c.id === colorsMap[root.id])?.hex ?? "transparent" : "transparent" }}
                   />
                   <button
-                    onClick={() => handleSelectRoot(root.id)}
+                    onClick={selectionMode ? undefined : () => handleSelectRoot(root.id)}
                     className={`flex-1 min-w-0 text-left ${
-                      isActive ? "text-violet-700 dark:text-violet-300" : "text-gray-700 dark:text-gray-300"
+                      (selectionMode ? isSelected : isActive) ? "text-violet-700 dark:text-violet-300" : "text-gray-700 dark:text-gray-300"
                     }`}
                   >
-                    <div className={`text-sm truncate ${isActive ? "font-medium" : ""}`}>
+                    <div className={`text-sm truncate ${(selectionMode ? isSelected : isActive) ? "font-medium" : ""}`}>
                       {locked
                         ? <span className="italic text-amber-500 dark:text-amber-400">Locked</span>
                         : firstLine(root.content) || <span className="italic text-gray-400 dark:text-gray-600">Untitled</span>
                       }
                     </div>
                   </button>
-                  {/* Lock button */}
-                  <button
-                    onClick={(e) => handleLockClick(e, root.id)}
-                    title={hasPin ? (locked ? "Unlock thought" : "Lock thought") : "Set PIN lock"}
-                    className={`shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors ${
-                      locked
-                        ? "opacity-100 text-amber-500 hover:text-amber-600"
-                        : "md:opacity-0 md:group-hover:opacity-100 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-                    }`}
-                  >
-                    {locked ? (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                      </svg>
-                    )}
-                  </button>
+                  {/* Lock button — hidden in selection mode */}
+                  {!selectionMode && (
+                    <button
+                      onClick={(e) => handleLockClick(e, root.id)}
+                      title={hasPin ? (locked ? "Unlock thought" : "Lock thought") : "Set PIN lock"}
+                      className={`shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors ${
+                        locked
+                          ? "opacity-100 text-amber-500 hover:text-amber-600"
+                          : "md:opacity-0 md:group-hover:opacity-100 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                      }`}
+                    >
+                      {locked ? (
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
                 </div>
               );
             })

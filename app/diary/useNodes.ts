@@ -129,6 +129,27 @@ export function useNodes() {
     [nodes, persist, pushHistory]
   );
 
+  const deleteMany = useCallback(
+    (ids: string[]) => {
+      const toDelete = new Set<string>();
+      for (const id of ids) {
+        const queue = [id];
+        while (queue.length > 0) {
+          const current = queue.pop()!;
+          toDelete.add(current);
+          for (const n of Object.values(nodes)) {
+            if (n.parentId === current) queue.push(n.id);
+          }
+        }
+      }
+      pushHistory(nodes);
+      const updated = { ...nodes };
+      toDelete.forEach((nid) => delete updated[nid]);
+      persist(updated);
+    },
+    [nodes, persist, pushHistory]
+  );
+
   const exportThought = useCallback(
     (id: string): ExportData => {
       function buildTree(nodeId: string): ExportedNode {
@@ -227,5 +248,5 @@ export function useNodes() {
     [nodes, persist]
   );
 
-  return { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, moveNode, exportThought, importThought, importMany, replaceThought, undo, redo, canUndo, canRedo, seedThoughts };
+  return { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, deleteMany, moveNode, exportThought, importThought, importMany, replaceThought, undo, redo, canUndo, canRedo, seedThoughts };
 }
