@@ -384,7 +384,7 @@ function NoteNode({
         {showDeleteDialog && (
           <ConfirmDialog message="Delete this note?" onConfirm={() => onDelete(node.id)} onCancel={() => setShowDeleteDialog(false)} />
         )}
-        {showColorPicker && (
+        {showColorPicker && createPortal(
           <>
             <div className="fixed inset-0 z-40" onClick={() => setShowColorPicker(false)} />
             <div
@@ -402,13 +402,14 @@ function NoteNode({
                 <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-          </>
+          </>,
+          document.body
         )}
         {showMobileMenu && createPortal(
           <>
-            <div className="fixed inset-0 z-[9998]" onClick={() => setShowMobileMenu(false)} />
+            <div className="fixed inset-0 z-9998" onClick={() => setShowMobileMenu(false)} />
             <div
-              className="fixed z-[9999] bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+              className="fixed z-9999 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
               style={{ top: mobileMenuPos.top, left: mobileMenuPos.left, minWidth: 160 }}
             >
               <button onClick={() => { onAddChild(node.id); setShowMobileMenu(false); }}
