@@ -1324,6 +1324,21 @@ export default function Home() {
         />
       )}
 
+      {/* Mobile sidebar toggle — bottom-left floating button */}
+      <button
+        onClick={() => setSidebarOpen((o) => !o)}
+        className="md:hidden fixed bottom-5 left-4 z-40 flex items-center gap-2 pl-3 pr-4 h-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-full shadow-lg text-gray-700 dark:text-gray-200 active:scale-95 transition-transform"
+      >
+        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+        <span className="text-sm font-medium max-w-35 truncate">
+          {selectedRootId && nodes[selectedRootId]
+            ? isLocked(selectedRootId) ? "Locked" : firstLine(nodes[selectedRootId].content) || "Untitled"
+            : "Thoughts"}
+        </span>
+      </button>
+
       {/* Auto-save badge */}
       <div className={`fixed bottom-4 right-4 flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-full shadow-lg transition-opacity duration-300 pointer-events-none ${showSaved ? "opacity-100" : "opacity-0"}`}>
         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
