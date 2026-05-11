@@ -16,18 +16,18 @@ const TRASH_KEY = "diary-trash";
 const COLORS_KEY = "diary-colors";
 
 const LABEL_COLORS = [
-  { id: "red",    hex: "#f87171" },
+  { id: "red", hex: "#f87171" },
   { id: "orange", hex: "#fb923c" },
   { id: "yellow", hex: "#facc15" },
-  { id: "green",  hex: "#4ade80" },
-  { id: "teal",   hex: "#2dd4bf" },
-  { id: "blue",   hex: "#60a5fa" },
+  { id: "green", hex: "#4ade80" },
+  { id: "teal", hex: "#2dd4bf" },
+  { id: "blue", hex: "#60a5fa" },
   { id: "purple", hex: "#a78bfa" },
-  { id: "pink",   hex: "#f472b6" },
+  { id: "pink", hex: "#f472b6" },
 ];
 import type { Route } from "./+types/home";
 
-export function meta({}: Route.MetaArgs) {
+export function meta({ }: Route.MetaArgs) {
   return [
     { title: "Thought Tree" },
     { name: "description", content: "A tree-structured digital notepad" },
@@ -134,11 +134,11 @@ export default function Home() {
     try {
       const rawTrash = localStorage.getItem(TRASH_KEY);
       if (rawTrash) setTrashEntries(JSON.parse(rawTrash));
-    } catch {}
+    } catch { }
     try {
       const rawColors = localStorage.getItem(COLORS_KEY);
       if (rawColors) setColorsMap(JSON.parse(rawColors));
-    } catch {}
+    } catch { }
   }, []);
 
   // Sidebar resize (desktop)
@@ -170,7 +170,7 @@ export default function Home() {
     try {
       const raw = localStorage.getItem("diary-root-order");
       if (raw) setRootOrder(JSON.parse(raw));
-    } catch {}
+    } catch { }
   }, []);
 
   useEffect(() => {
@@ -234,7 +234,7 @@ export default function Home() {
     try {
       const raw = localStorage.getItem(PINS_KEY);
       if (raw) setPinsMap(JSON.parse(raw));
-    } catch {}
+    } catch { }
   }, []);
 
   useEffect(() => {
@@ -792,19 +792,16 @@ export default function Home() {
                   onPointerCancel={cancelLongPress}
                   onPointerLeave={cancelLongPress}
                   onClick={selectionMode ? () => handleToggleSelect(root.id) : undefined}
-                  className={`group flex items-center gap-1 mx-1 my-0.5 px-2 py-1.5 rounded-md transition-colors select-none ${
-                    !selectionMode && isDragging ? "opacity-40" : ""
-                  } ${
-                    !selectionMode && isDragOver ? "ring-1 ring-violet-400 dark:ring-violet-500" : ""
-                  } ${
-                    selectionMode
+                  className={`group flex items-center gap-1 mx-1 my-0.5 px-2 py-1.5 rounded-md transition-colors select-none ${!selectionMode && isDragging ? "opacity-40" : ""
+                    } ${!selectionMode && isDragOver ? "ring-1 ring-violet-400 dark:ring-violet-500" : ""
+                    } ${selectionMode
                       ? isSelected
                         ? "bg-violet-50 dark:bg-violet-900/30"
                         : "hover:bg-gray-100 dark:hover:bg-gray-800"
                       : isActive
                         ? "bg-violet-50 dark:bg-violet-900/30"
                         : "hover:bg-gray-100 dark:hover:bg-gray-800"
-                  } ${selectionMode ? "cursor-pointer" : ""}`}
+                    } ${selectionMode ? "cursor-pointer" : ""}`}
                 >
                   {selectionMode ? (
                     /* Checkbox */
@@ -819,7 +816,7 @@ export default function Home() {
                     /* Drag handle */
                     <span className="shrink-0 flex items-center cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+                        <path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
                       </svg>
                     </span>
                   )}
@@ -830,9 +827,8 @@ export default function Home() {
                   />
                   <button
                     onClick={selectionMode ? undefined : () => handleSelectRoot(root.id)}
-                    className={`flex-1 min-w-0 text-left ${
-                      (selectionMode ? isSelected : isActive) ? "text-violet-700 dark:text-violet-300" : "text-gray-700 dark:text-gray-300"
-                    }`}
+                    className={`flex-1 min-w-0 text-left ${(selectionMode ? isSelected : isActive) ? "text-violet-700 dark:text-violet-300" : "text-gray-700 dark:text-gray-300"
+                      }`}
                   >
                     <div className={`text-sm truncate ${(selectionMode ? isSelected : isActive) ? "font-medium" : ""}`}>
                       {locked
@@ -846,11 +842,10 @@ export default function Home() {
                     <button
                       onClick={(e) => handleLockClick(e, root.id)}
                       title={hasPin ? (locked ? "Unlock thought" : "Lock thought") : "Set PIN lock"}
-                      className={`shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors ${
-                        locked
+                      className={`shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors ${locked
                           ? "opacity-100 text-amber-500 hover:text-amber-600"
                           : "md:opacity-0 md:group-hover:opacity-100 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-                      }`}
+                        }`}
                     >
                       {locked ? (
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -957,11 +952,10 @@ export default function Home() {
                 <button
                   onClick={() => setViewMode("tree")}
                   title="Tree view"
-                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                    viewMode === "tree"
+                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${viewMode === "tree"
                       ? "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm"
                       : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                  }`}
+                    }`}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10M4 18h7" />
@@ -971,11 +965,10 @@ export default function Home() {
                 <button
                   onClick={() => setViewMode("map")}
                   title="Map view"
-                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                    viewMode === "map"
+                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${viewMode === "map"
                       ? "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm"
                       : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                  }`}
+                    }`}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -1071,17 +1064,16 @@ export default function Home() {
                 style={{ color: colorsMap[selectedRootId] ? LABEL_COLORS.find(c => c.id === colorsMap[selectedRootId])?.hex : undefined }}
               >
                 <svg className={`w-4 h-4 ${colorsMap[selectedRootId] ? "" : "text-gray-400 dark:text-gray-500"}`} fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.1 0 2-.9 2-2 0-.53-.2-1.01-.52-1.38-.31-.36-.49-.84-.49-1.32 0-1.1.9-2 2-2h2.36c3.09 0 5.65-2.56 5.65-5.65C22.99 6.01 17.99 2 12 2zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5S18.33 11 17.5 11z"/>
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.1 0 2-.9 2-2 0-.53-.2-1.01-.52-1.38-.31-.36-.49-.84-.49-1.32 0-1.1.9-2 2-2h2.36c3.09 0 5.65-2.56 5.65-5.65C22.99 6.01 17.99 2 12 2zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5S18.33 11 17.5 11z" />
                 </svg>
               </button>
               <button
                 onClick={() => handleCopyShare(selectedRootId)}
                 title="Copy share link"
-                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
-                  copiedId === selectedRootId
+                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${copiedId === selectedRootId
                     ? "text-green-500"
                     : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-                }`}
+                  }`}
               >
                 {copiedId === selectedRootId ? (
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1332,11 +1324,6 @@ export default function Home() {
         <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
         </svg>
-        <span className="text-sm font-medium max-w-35 truncate">
-          {selectedRootId && nodes[selectedRootId]
-            ? isLocked(selectedRootId) ? "Locked" : firstLine(nodes[selectedRootId].content) || "Untitled"
-            : "Thoughts"}
-        </span>
       </button>
 
       {/* Auto-save badge */}
