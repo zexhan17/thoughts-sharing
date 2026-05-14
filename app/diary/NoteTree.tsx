@@ -111,12 +111,14 @@ interface NodeProps {
   childOrders: Record<string, string[]>;
   nodeColors: Record<string, string>;
   drag: DragState;
+  dragMode: boolean;
   onEdit: (id: string) => void;
   onSave: (id: string, content: string) => void;
   onAutoSave: (id: string, content: string) => void;
   onCancel: (id: string) => void;
   onAddChild: (parentId: string) => void;
   onDelete: (id: string) => void;
+  onDeleteKeepChildren?: (id: string) => void;
   onMove?: (id: string) => void;
   onNodeColorChange: (nodeId: string, color: string | null) => void;
   onDragStart: (id: string, parentId: string | null) => void;
@@ -128,8 +130,8 @@ interface NodeProps {
 
 function NoteNode({
   node, nodes, depth, isLast, parentLines,
-  editingId, highlightId, childOrders, nodeColors, drag,
-  onEdit, onSave, onAutoSave, onCancel, onAddChild, onDelete, onMove, onNodeColorChange,
+  editingId, highlightId, childOrders, nodeColors, drag, dragMode,
+  onEdit, onSave, onAutoSave, onCancel, onAddChild, onDelete, onDeleteKeepChildren, onMove, onNodeColorChange,
   onDragStart, onDragEnd,
   onTouchDragStart, onTouchDragMove, onTouchDrop,
 }: NodeProps) {
@@ -411,7 +413,7 @@ function NoteNode({
               >
                 ···
               </button>
-              {depth > 0 && (
+              {depth > 0 && dragMode && (
                 <span className="w-7 h-7 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 touch-none"
                   onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" /></svg>
@@ -423,7 +425,14 @@ function NoteNode({
 
         {/* Dialogs / popovers */}
         {showDeleteDialog && createPortal(
-          <ConfirmDialog message="Delete this note?" detail={node.content ? node.content.trim().slice(0, 120) : undefined} onConfirm={() => onDelete(node.id)} onCancel={() => setShowDeleteDialog(false)} />,
+          <ConfirmDialog
+            message="Delete this note?"
+            detail={node.content ? node.content.trim().slice(0, 120) : undefined}
+            showChildOption={hasChildren}
+            onConfirm={() => { onDelete(node.id); setShowDeleteDialog(false); }}
+            onConfirmKeepChildren={onDeleteKeepChildren ? () => { onDeleteKeepChildren(node.id); setShowDeleteDialog(false); } : undefined}
+            onCancel={() => setShowDeleteDialog(false)}
+          />,
           document.body
         )}
         {showColorPicker && createPortal(
@@ -528,8 +537,8 @@ function NoteNode({
           {children.map((child, idx) => (
             <NoteNode key={child.id} node={child} nodes={nodes} depth={depth + 1}
               isLast={idx === children.length - 1} parentLines={[...parentLines, !isLast]}
-              editingId={editingId} highlightId={highlightId} childOrders={childOrders} nodeColors={nodeColors} drag={drag}
-              onEdit={onEdit} onSave={onSave} onAutoSave={onAutoSave} onCancel={onCancel} onAddChild={onAddChild} onDelete={onDelete} onMove={onMove} onNodeColorChange={onNodeColorChange}
+              editingId={editingId} highlightId={highlightId} childOrders={childOrders} nodeColors={nodeColors} drag={drag} dragMode={dragMode}
+              onEdit={onEdit} onSave={onSave} onAutoSave={onAutoSave} onCancel={onCancel} onAddChild={onAddChild} onDelete={onDelete} onDeleteKeepChildren={onDeleteKeepChildren} onMove={onMove} onNodeColorChange={onNodeColorChange}
               onDragStart={onDragStart} onDragEnd={onDragEnd}
               onTouchDragStart={onTouchDragStart} onTouchDragMove={onTouchDragMove} onTouchDrop={onTouchDrop}
             />
@@ -552,12 +561,14 @@ interface NoteTreeProps {
   onUpdate: (id: string, content: string) => void;
   onCreateChild: (parentId: string) => string;
   onDelete: (id: string) => void;
+  onDeleteKeepChildren?: (id: string) => void;
   onMove?: (nodeId: string) => void;
   onReparent?: (nodeId: string, newParentId: string | null) => void;
   onAnyHiddenChange?: (anyHidden: boolean) => void;
+  dragMode?: boolean;
 }
 
-export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandSignal, hideSignal, revealSignal, scrollToId, onUpdate, onCreateChild, onDelete, onMove, onReparent, onAnyHiddenChange }: NoteTreeProps) {
+export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandSignal, hideSignal, revealSignal, scrollToId, onUpdate, onCreateChild, onDelete, onDeleteKeepChildren, onMove, onReparent, onAnyHiddenChange, dragMode = false }: NoteTreeProps) {
   const [editingId, setEditingId] = useState<string | null>(initialEditId);
   const [childOrders, setChildOrders] = useState<Record<string, string[]>>({});
   const [nodeColors, setNodeColors] = useState<Record<string, string>>({});
@@ -781,8 +792,8 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
         >
           <div className="p-5 sm:p-8 max-w-2xl mb-120">
             <NoteNode node={root} nodes={nodes} depth={0} isLast={true} parentLines={[]}
-              editingId={editingId} highlightId={highlightId} childOrders={childOrders} nodeColors={nodeColors} drag={drag}
-              onEdit={setEditingId} onSave={handleSave} onAutoSave={handleAutoSave} onCancel={handleCancel} onAddChild={handleAddChild} onDelete={onDelete} onMove={onMove} onNodeColorChange={handleNodeColorChange}
+              editingId={editingId} highlightId={highlightId} childOrders={childOrders} nodeColors={nodeColors} drag={drag} dragMode={dragMode}
+              onEdit={setEditingId} onSave={handleSave} onAutoSave={handleAutoSave} onCancel={handleCancel} onAddChild={handleAddChild} onDelete={onDelete} onDeleteKeepChildren={onDeleteKeepChildren} onMove={onMove} onNodeColorChange={handleNodeColorChange}
               onDragStart={handleDragStart} onDragEnd={handleDragEnd}
               onTouchDragStart={handleTouchDragStart} onTouchDragMove={handleTouchDragMove} onTouchDrop={handleTouchDrop}
             />

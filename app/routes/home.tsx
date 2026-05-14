@@ -62,7 +62,7 @@ function validateBulkExport(data: unknown): data is BulkExport {
 }
 
 export default function Home() {
-  const { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, deleteMany, moveNode, exportThought, importThought, importMany, replaceThought, undo, redo, canUndo, canRedo, seedThoughts } = useNodes();
+  const { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, deleteNodeOnly, deleteMany, moveNode, exportThought, importThought, importMany, replaceThought, undo, redo, canUndo, canRedo, seedThoughts } = useNodes();
 
   const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
   const [initialEditId, setInitialEditId] = useState<string | null>(null);
@@ -94,6 +94,7 @@ export default function Home() {
   const [hideSignal, setHideSignal] = useState(0);
   const [revealSignal, setRevealSignal] = useState(0);
   const [anyHidden, setAnyHidden] = useState(false);
+  const [dragMode, setDragMode] = useState(false);
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1007,6 +1008,13 @@ export default function Home() {
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                     )}
                   </button>
+                  <button
+                    onClick={() => setDragMode((s) => !s)}
+                    title={dragMode ? "Disable reorder" : "Enable reorder"}
+                    className={`sm:hidden w-7 h-7 flex items-center justify-center rounded-md transition-colors ${dragMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30" : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" /></svg>
+                  </button>
                 </>
               )}
               <button
@@ -1192,6 +1200,8 @@ export default function Home() {
               onUpdate={handleUpdateNode}
               onCreateChild={handleCreateChild}
               onDelete={handleDeleteNode}
+              onDeleteKeepChildren={deleteNodeOnly}
+              dragMode={dragMode}
               onMove={(nodeId) => setMovingNodeId(nodeId)}
               onReparent={(nodeId, newParentId) => moveNode(nodeId, newParentId)}
             />

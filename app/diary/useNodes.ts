@@ -129,6 +129,23 @@ export function useNodes() {
     [nodes, persist, pushHistory]
   );
 
+  const deleteNodeOnly = useCallback(
+    (id: string) => {
+      const node = nodes[id];
+      if (!node) return;
+      pushHistory(nodes);
+      const updated = { ...nodes };
+      for (const n of Object.values(updated)) {
+        if (n.parentId === id) {
+          updated[n.id] = { ...n, parentId: node.parentId };
+        }
+      }
+      delete updated[id];
+      persist(updated);
+    },
+    [nodes, persist, pushHistory]
+  );
+
   const deleteMany = useCallback(
     (ids: string[]) => {
       const toDelete = new Set<string>();
@@ -248,5 +265,5 @@ export function useNodes() {
     [nodes, persist]
   );
 
-  return { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, deleteMany, moveNode, exportThought, importThought, importMany, replaceThought, undo, redo, canUndo, canRedo, seedThoughts };
+  return { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, deleteNodeOnly, deleteMany, moveNode, exportThought, importThought, importMany, replaceThought, undo, redo, canUndo, canRedo, seedThoughts };
 }
