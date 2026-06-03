@@ -26,17 +26,35 @@ const LABEL_COLORS = [
   { id: "pink", hex: "#f472b6" },
 ];
 const THEMES = [
-  { id: "snow",     name: "Snow",     dark: false, bg: "#ffffff", accent: "#7c3aed" },
-  { id: "rose",     name: "Rose",     dark: false, bg: "#ffffff", accent: "#e11d48" },
-  { id: "sage",     name: "Sage",     dark: false, bg: "#ffffff", accent: "#059669" },
-  { id: "lemon",    name: "Lemon",    dark: false, bg: "#ffffff", accent: "#d97706" },
-  { id: "night",    name: "Night",    dark: true,  bg: "#030712", accent: "#7c3aed" },
-  { id: "ocean",    name: "Ocean",    dark: true,  bg: "#020c17", accent: "#0284c7" },
-  { id: "forest",   name: "Forest",   dark: true,  bg: "#011408", accent: "#059669" },
-  { id: "sunset",   name: "Sunset",   dark: true,  bg: "#120804", accent: "#ea580c" },
-  { id: "midnight",  name: "Midnight", dark: true,  bg: "#01030f", accent: "#4f46e5" },
-  { id: "mocha",     name: "Mocha",    dark: true,  bg: "#0f0800", accent: "#d97706" },
-  { id: "rose-dark", name: "Rose",     dark: true,  bg: "#140509", accent: "#e11d48" },
+  // Light
+  { id: "snow",       name: "Snow",     dark: false, bg: "#ffffff", accent: "#7c3aed" },
+  { id: "rose",       name: "Rose",     dark: false, bg: "#ffffff", accent: "#e11d48" },
+  { id: "sage",       name: "Sage",     dark: false, bg: "#ffffff", accent: "#059669" },
+  { id: "lemon",      name: "Lemon",    dark: false, bg: "#ffffff", accent: "#d97706" },
+  { id: "mint",       name: "Mint",     dark: false, bg: "#ffffff", accent: "#0d9488" },
+  { id: "sky",        name: "Sky",      dark: false, bg: "#ffffff", accent: "#2563eb" },
+  { id: "grape",      name: "Grape",    dark: false, bg: "#ffffff", accent: "#4f46e5" },
+  { id: "coral",      name: "Coral",    dark: false, bg: "#ffffff", accent: "#e8431e" },
+  { id: "candy",      name: "Candy",    dark: false, bg: "#ffffff", accent: "#db2777" },
+  { id: "cherry",     name: "Cherry",   dark: false, bg: "#ffffff", accent: "#dc2626" },
+  // Dark
+  { id: "night",      name: "Night",    dark: true,  bg: "#030712", accent: "#7c3aed" },
+  { id: "ocean",      name: "Ocean",    dark: true,  bg: "#020c17", accent: "#0284c7" },
+  { id: "forest",     name: "Forest",   dark: true,  bg: "#011408", accent: "#059669" },
+  { id: "sunset",     name: "Sunset",   dark: true,  bg: "#120804", accent: "#ea580c" },
+  { id: "midnight",   name: "Midnight", dark: true,  bg: "#01030f", accent: "#4f46e5" },
+  { id: "mocha",      name: "Mocha",    dark: true,  bg: "#0f0800", accent: "#d97706" },
+  { id: "rose-dark",  name: "Rose",     dark: true,  bg: "#140509", accent: "#e11d48" },
+  { id: "dracula",    name: "Dracula",  dark: true,  bg: "#0d0719", accent: "#e91e8c" },
+  { id: "nord",       name: "Nord",     dark: true,  bg: "#111823", accent: "#5e81ac" },
+  { id: "ayu",        name: "Ayu",      dark: true,  bg: "#0b0e14", accent: "#e6b450" },
+  { id: "catppuccin", name: "Catp.",    dark: true,  bg: "#11111b", accent: "#cba6f7" },
+  { id: "slate",      name: "Slate",    dark: true,  bg: "#020617", accent: "#0891b2" },
+  { id: "ruby",       name: "Ruby",     dark: true,  bg: "#130005", accent: "#e60000" },
+  { id: "galaxy",     name: "Galaxy",   dark: true,  bg: "#050008", accent: "#c026d3" },
+  { id: "matrix",     name: "Matrix",   dark: true,  bg: "#000a00", accent: "#009900" },
+  { id: "arctic",     name: "Arctic",   dark: true,  bg: "#010812", accent: "#1a87ff" },
+  { id: "ember",      name: "Ember",    dark: true,  bg: "#110502", accent: "#e63a00" },
 ] as const;
 type ThemeId = typeof THEMES[number]["id"];
 
@@ -783,7 +801,7 @@ export default function Home() {
                 <button
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
-                    const w = 264;
+                    const w = 296;
                     setThemePickerPos({ top: rect.bottom + 4, left: Math.max(4, Math.min(rect.left, window.innerWidth - w - 4)) });
                     setShowThemePicker(s => !s);
                   }}
@@ -1388,10 +1406,10 @@ export default function Home() {
           <div className="fixed inset-0 z-40" onClick={() => setShowThemePicker(false)} />
           <div
             className="fixed z-50 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-3"
-            style={{ top: themePickerPos.top, left: themePickerPos.left, width: 264 }}
+            style={{ top: themePickerPos.top, left: themePickerPos.left, width: 296 }}
           >
             <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-0.5">Light</p>
-            <div className="grid grid-cols-4 gap-1.5 mb-3">
+            <div className="grid grid-cols-5 gap-1.5 mb-3">
               {THEMES.filter(t => !t.dark).map(t => (
                 <button
                   key={t.id}
@@ -1408,7 +1426,7 @@ export default function Home() {
               ))}
             </div>
             <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-0.5">Dark</p>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-5 gap-1.5">
               {THEMES.filter(t => t.dark).map(t => (
                 <button
                   key={t.id}
