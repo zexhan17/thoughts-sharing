@@ -25,6 +25,21 @@ const LABEL_COLORS = [
   { id: "purple", hex: "#a78bfa" },
   { id: "pink", hex: "#f472b6" },
 ];
+const THEMES = [
+  { id: "snow",     name: "Snow",     dark: false, bg: "#ffffff", accent: "#7c3aed" },
+  { id: "rose",     name: "Rose",     dark: false, bg: "#ffffff", accent: "#e11d48" },
+  { id: "sage",     name: "Sage",     dark: false, bg: "#ffffff", accent: "#059669" },
+  { id: "lemon",    name: "Lemon",    dark: false, bg: "#ffffff", accent: "#d97706" },
+  { id: "night",    name: "Night",    dark: true,  bg: "#030712", accent: "#7c3aed" },
+  { id: "ocean",    name: "Ocean",    dark: true,  bg: "#020c17", accent: "#0284c7" },
+  { id: "forest",   name: "Forest",   dark: true,  bg: "#011408", accent: "#059669" },
+  { id: "sunset",   name: "Sunset",   dark: true,  bg: "#120804", accent: "#ea580c" },
+  { id: "midnight",  name: "Midnight", dark: true,  bg: "#01030f", accent: "#4f46e5" },
+  { id: "mocha",     name: "Mocha",    dark: true,  bg: "#0f0800", accent: "#d97706" },
+  { id: "rose-dark", name: "Rose",     dark: true,  bg: "#140509", accent: "#e11d48" },
+] as const;
+type ThemeId = typeof THEMES[number]["id"];
+
 import type { Route } from "./+types/home";
 
 export function meta({ }: Route.MetaArgs) {
@@ -67,7 +82,10 @@ export default function Home() {
   const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
   const [initialEditId, setInitialEditId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"tree" | "map">("tree");
-  const [isDark, setIsDark] = useState(false);
+  const [theme, setTheme] = useState<ThemeId>("snow");
+  const isDark = THEMES.find(t => t.id === theme)?.dark ?? false;
+  const [showThemePicker, setShowThemePicker] = useState(false);
+  const [themePickerPos, setThemePickerPos] = useState({ top: 0, left: 0 });
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -125,7 +143,9 @@ export default function Home() {
 
 
   useEffect(() => {
-    setIsDark(document.documentElement.classList.contains("dark"));
+    const savedTheme = (localStorage.getItem("app-theme") ?? "snow") as ThemeId;
+    const matched = THEMES.find(t => t.id === savedTheme) ? savedTheme : "snow";
+    setTheme(matched);
     if (window.innerWidth < 768) setSidebarOpen(false);
     const saved = localStorage.getItem("sidebar-width");
     if (saved) {
@@ -294,13 +314,16 @@ export default function Home() {
     setTimeout(() => setShareToast(null), 4000);
   }
 
-  function toggleDark() {
-    setIsDark((d) => {
-      const next = !d;
-      document.documentElement.classList.toggle("dark", next);
-      localStorage.setItem("theme", next ? "dark" : "light");
-      return next;
-    });
+  function applyTheme(id: ThemeId) {
+    const t = THEMES.find(th => th.id === id)!;
+    document.documentElement.classList.toggle("dark", t.dark);
+    document.documentElement.setAttribute("data-theme", id);
+    localStorage.setItem("app-theme", id);
+  }
+
+  function handleThemeChange(id: ThemeId) {
+    setTheme(id);
+    applyTheme(id);
   }
 
   function handleCreateRoot() {
@@ -744,19 +767,18 @@ export default function Home() {
                   ?
                 </button>
                 <button
-                  onClick={toggleDark}
-                  title={isDark ? "Light mode" : "Dark mode"}
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const w = 264;
+                    setThemePickerPos({ top: rect.bottom + 4, left: Math.max(4, Math.min(rect.left, window.innerWidth - w - 4)) });
+                    setShowThemePicker(s => !s);
+                  }}
+                  title="Change theme"
                   className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
-                  {isDark ? (
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                    </svg>
-                  )}
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
+                  </svg>
                 </button>
                 <button
                   onClick={handleCreateRoot}
@@ -1345,6 +1367,52 @@ export default function Home() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
+
+      {/* Theme picker popover */}
+      {showThemePicker && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowThemePicker(false)} />
+          <div
+            className="fixed z-50 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-3"
+            style={{ top: themePickerPos.top, left: themePickerPos.left, width: 264 }}
+          >
+            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-0.5">Light</p>
+            <div className="grid grid-cols-4 gap-1.5 mb-3">
+              {THEMES.filter(t => !t.dark).map(t => (
+                <button
+                  key={t.id}
+                  title={t.name}
+                  onClick={() => { handleThemeChange(t.id); setShowThemePicker(false); }}
+                  className={`flex flex-col items-center gap-1.5 p-1.5 rounded-xl transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${theme === t.id ? "ring-2 ring-violet-500 dark:ring-violet-400" : ""}`}
+                >
+                  <div className="w-9 h-6 rounded-lg overflow-hidden flex border border-black/10">
+                    <div className="flex-1" style={{ background: t.bg }} />
+                    <div className="w-3" style={{ background: t.accent }} />
+                  </div>
+                  <span className="text-[10px] leading-none text-gray-500 dark:text-gray-400">{t.name}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-0.5">Dark</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {THEMES.filter(t => t.dark).map(t => (
+                <button
+                  key={t.id}
+                  title={t.name}
+                  onClick={() => { handleThemeChange(t.id); setShowThemePicker(false); }}
+                  className={`flex flex-col items-center gap-1.5 p-1.5 rounded-xl transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${theme === t.id ? "ring-2 ring-violet-500 dark:ring-violet-400" : ""}`}
+                >
+                  <div className="w-9 h-6 rounded-lg overflow-hidden flex border border-black/10">
+                    <div className="flex-1" style={{ background: t.bg }} />
+                    <div className="w-3" style={{ background: t.accent }} />
+                  </div>
+                  <span className="text-[10px] leading-none text-gray-500 dark:text-gray-400">{t.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Auto-save badge */}
       <div className={`fixed bottom-4 right-4 flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-full shadow-lg transition-opacity duration-300 pointer-events-none ${showSaved ? "opacity-100" : "opacity-0"}`}>

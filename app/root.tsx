@@ -34,8 +34,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
-        {/* Prevent dark mode flash before React hydrates */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}})()` }} />
+        {/* Prevent theme flash before React hydrates */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var D=['night','ocean','forest','sunset','midnight','mocha','rose-dark'];var t=localStorage.getItem('app-theme')||'snow';document.documentElement.setAttribute('data-theme',t);if(D.indexOf(t)!==-1)document.documentElement.classList.add('dark')})()` }} />
         <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js',{scope:'/'})})}`}} />
         {children}
         <ScrollRestoration />

@@ -31,3 +31,157 @@ html, body {
 .anim-slide-right { animation: slide-from-right 0.22s cubic-bezier(.22,.68,0,1.2) both; }
 .anim-slide-left  { animation: slide-from-left  0.22s cubic-bezier(.22,.68,0,1.2) both; }
 .anim-pop-in      { animation: pop-in           0.25s cubic-bezier(.22,.68,0,1.2) both; }
+
+/* ── Themes ──────────────────────────────────────────────────────────────── */
+/* Each theme overrides the Tailwind CSS variables used throughout the app.  */
+/* Dark themes also require the `dark` class on <html> (set by JS).          */
+
+/* Rose — light, rose/pink accent */
+[data-theme="rose"] {
+  --color-violet-50:  #fff1f2;
+  --color-violet-100: #ffe4e6;
+  --color-violet-200: #fecdd3;
+  --color-violet-300: #fda4af;
+  --color-violet-400: #fb7185;
+  --color-violet-500: #f43f5e;
+  --color-violet-600: #e11d48;
+  --color-violet-700: #be123c;
+  --color-violet-800: #9f1239;
+  --color-violet-900: #881337;
+}
+
+/* Sage — light, emerald accent */
+[data-theme="sage"] {
+  --color-violet-50:  #ecfdf5;
+  --color-violet-100: #d1fae5;
+  --color-violet-200: #a7f3d0;
+  --color-violet-300: #6ee7b7;
+  --color-violet-400: #34d399;
+  --color-violet-500: #10b981;
+  --color-violet-600: #059669;
+  --color-violet-700: #047857;
+  --color-violet-800: #065f46;
+  --color-violet-900: #064e3b;
+}
+
+/* Lemon — light, amber accent */
+[data-theme="lemon"] {
+  --color-violet-50:  #fffbeb;
+  --color-violet-100: #fef3c7;
+  --color-violet-200: #fde68a;
+  --color-violet-300: #fcd34d;
+  --color-violet-400: #fbbf24;
+  --color-violet-500: #f59e0b;
+  --color-violet-600: #d97706;
+  --color-violet-700: #b45309;
+  --color-violet-800: #92400e;
+  --color-violet-900: #78350f;
+}
+
+/* Ocean — dark, deep navy bg + sky-blue accent */
+[data-theme="ocean"] {
+  --color-gray-950: #020c17;
+  --color-gray-900: #041526;
+  --color-gray-800: #0a2744;
+  --color-gray-700: #0f3660;
+  --color-violet-50:  #f0f9ff;
+  --color-violet-100: #e0f2fe;
+  --color-violet-200: #bae6fd;
+  --color-violet-300: #7dd3fc;
+  --color-violet-400: #38bdf8;
+  --color-violet-500: #0ea5e9;
+  --color-violet-600: #0284c7;
+  --color-violet-700: #0369a1;
+  --color-violet-800: #075985;
+  --color-violet-900: #0c4a6e;
+}
+
+/* Forest — dark, deep green bg + emerald accent */
+[data-theme="forest"] {
+  --color-gray-950: #011408;
+  --color-gray-900: #041f0d;
+  --color-gray-800: #083318;
+  --color-gray-700: #0d4624;
+  --color-violet-50:  #ecfdf5;
+  --color-violet-100: #d1fae5;
+  --color-violet-200: #a7f3d0;
+  --color-violet-300: #6ee7b7;
+  --color-violet-400: #34d399;
+  --color-violet-500: #10b981;
+  --color-violet-600: #059669;
+  --color-violet-700: #047857;
+  --color-violet-800: #065f46;
+  --color-violet-900: #064e3b;
+}
+
+/* Sunset — dark, warm charcoal bg + orange accent */
+[data-theme="sunset"] {
+  --color-gray-950: #120804;
+  --color-gray-900: #1c1009;
+  --color-gray-800: #2d1a10;
+  --color-gray-700: #3e2415;
+  --color-violet-50:  #fff7ed;
+  --color-violet-100: #ffedd5;
+  --color-violet-200: #fed7aa;
+  --color-violet-300: #fdba74;
+  --color-violet-400: #fb923c;
+  --color-violet-500: #f97316;
+  --color-violet-600: #ea580c;
+  --color-violet-700: #c2410c;
+  --color-violet-800: #9a3412;
+  --color-violet-900: #7c2d12;
+}
+
+/* Midnight — dark, deepest navy bg + indigo accent */
+[data-theme="midnight"] {
+  --color-gray-950: #01030f;
+  --color-gray-900: #050920;
+  --color-gray-800: #0b1338;
+  --color-gray-700: #111c4f;
+  --color-violet-50:  #eef2ff;
+  --color-violet-100: #e0e7ff;
+  --color-violet-200: #c7d2fe;
+  --color-violet-300: #a5b4fc;
+  --color-violet-400: #818cf8;
+  --color-violet-500: #6366f1;
+  --color-violet-600: #4f46e5;
+  --color-violet-700: #4338ca;
+  --color-violet-800: #3730a3;
+  --color-violet-900: #312e81;
+}
+
+/* Rose Dark — dark, deep rose/burgundy bg + rose accent */
+[data-theme="rose-dark"] {
+  --color-gray-950: #140509;
+  --color-gray-900: #200810;
+  --color-gray-800: #33101c;
+  --color-gray-700: #4a1829;
+  --color-violet-50:  #fff1f2;
+  --color-violet-100: #ffe4e6;
+  --color-violet-200: #fecdd3;
+  --color-violet-300: #fda4af;
+  --color-violet-400: #fb7185;
+  --color-violet-500: #f43f5e;
+  --color-violet-600: #e11d48;
+  --color-violet-700: #be123c;
+  --color-violet-800: #9f1239;
+  --color-violet-900: #881337;
+}
+
+/* Mocha — dark, warm chocolate bg + amber/gold accent */
+[data-theme="mocha"] {
+  --color-gray-950: #0f0800;
+  --color-gray-900: #1c1005;
+  --color-gray-800: #2e1a08;
+  --color-gray-700: #40240c;
+  --color-violet-50:  #fffbeb;
+  --color-violet-100: #fef3c7;
+  --color-violet-200: #fde68a;
+  --color-violet-300: #fcd34d;
+  --color-violet-400: #fbbf24;
+  --color-violet-500: #f59e0b;
+  --color-violet-600: #d97706;
+  --color-violet-700: #b45309;
+  --color-violet-800: #92400e;
+  --color-violet-900: #78350f;
+}
