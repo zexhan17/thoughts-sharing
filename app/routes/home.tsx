@@ -112,7 +112,6 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [showTrash, setShowTrash] = useState(false);
   const [movingNodeId, setMovingNodeId] = useState<string | null>(null);
   const [showSaved, setShowSaved] = useState(false);
   const [scrollToId, setScrollToId] = useState<string | null>(null);
@@ -183,17 +182,17 @@ export default function Home() {
     } catch { }
   }, []);
 
-  // Shrink container to visual viewport height so virtual keyboard doesn't cover content
+  // Shrink container when virtual keyboard is open; ignore normal browser-chrome resize
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const update = () => setViewportH(vv.height);
-    vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
-    return () => {
-      vv.removeEventListener("resize", update);
-      vv.removeEventListener("scroll", update);
+    const update = () => {
+      // Only engage when keyboard is open — viewport shrinks noticeably vs window height
+      const keyboardOpen = window.innerHeight - vv.height > 150;
+      setViewportH(keyboardOpen ? vv.height : null);
     };
+    vv.addEventListener("resize", update);
+    return () => vv.removeEventListener("resize", update);
   }, []);
 
   // Sidebar resize (desktop)
@@ -499,15 +498,6 @@ export default function Home() {
     exitSelectionMode();
   }
 
-  function handleRestore(entry: TrashEntry) {
-    const id = importThought(entry.snapshot, null);
-    setSelectedRootId(id);
-    const nextTrash = trashEntries.filter((e) => e.id !== entry.id);
-    setTrashEntries(nextTrash);
-    localStorage.setItem(TRASH_KEY, JSON.stringify(nextTrash));
-    setShowTrash(false);
-    toast(`"${entry.label}" restored`);
-  }
 
   function handlePermanentDelete(id: string) {
     const nextTrash = trashEntries.filter((e) => e.id !== id);

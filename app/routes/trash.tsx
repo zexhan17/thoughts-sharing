@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { useNodes } from "../diary/useNodes";
 import type { TrashEntry } from "../diary/TrashDialog";
+import type { ExportedNode } from "../diary/types";
+
 const TRASH_KEY = "diary-trash";
+const NODES_KEY = "diary-nodes";
 
 export function meta() {
   return [{ title: "Trash — Thought Tree" }];
@@ -18,10 +20,27 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+// Restores a thought tree directly into localStorage without going through
+// useNodes (which starts with empty state and risks overwriting all nodes).
+function restoreToStorage(entry: TrashEntry) {
+  try {
+    const raw = localStorage.getItem(NODES_KEY);
+    const nodes: Record<string, unknown> = raw ? JSON.parse(raw) : {};
+    function insert(node: ExportedNode, parentId: string | null) {
+      const id = `node-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      nodes[id] = { id, content: node.content, parentId, createdAt: node.createdAt };
+      for (const child of node.children) insert(child, id);
+    }
+    insert(entry.snapshot.thought, null);
+    localStorage.setItem(NODES_KEY, JSON.stringify(nodes));
+  } catch {}
+}
+
 export default function TrashPage() {
   const navigate = useNavigate();
-  const { importThought } = useNodes();
   const [entries, setEntries] = useState<TrashEntry[]>([]);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
 
   useEffect(() => {
     try {
@@ -36,17 +55,19 @@ export default function TrashPage() {
   }
 
   function handleRestore(entry: TrashEntry) {
-    importThought(entry.snapshot, null);
+    restoreToStorage(entry);
     save(entries.filter((e) => e.id !== entry.id));
     navigate("/");
   }
 
   function handleDelete(id: string) {
     save(entries.filter((e) => e.id !== id));
+    setConfirmDeleteId(null);
   }
 
   function handleClearAll() {
     save([]);
+    setConfirmClearAll(false);
   }
 
   return (
@@ -77,12 +98,20 @@ export default function TrashPage() {
         </div>
 
         {entries.length > 0 && (
-          <button
-            onClick={handleClearAll}
-            className="shrink-0 text-xs text-red-400 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 transition-colors font-medium"
-          >
-            Clear all
-          </button>
+          confirmClearAll ? (
+            <div className="shrink-0 flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Clear all?</span>
+              <button onClick={handleClearAll} className="text-xs font-medium text-red-500 hover:text-red-600 transition-colors">Yes</button>
+              <button onClick={() => setConfirmClearAll(false)} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">No</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmClearAll(true)}
+              className="shrink-0 text-xs text-red-400 hover:text-red-500 dark:hover:text-red-300 transition-colors font-medium"
+            >
+              Clear all
+            </button>
+          )
         )}
       </header>
 
@@ -111,14 +140,12 @@ export default function TrashPage() {
                 key={entry.id}
                 className={`flex items-center gap-3 px-4 py-3.5 bg-white dark:bg-gray-900 ${idx !== entries.length - 1 ? "border-b border-gray-50 dark:border-gray-800" : ""}`}
               >
-                {/* Icon */}
                 <div className="shrink-0 w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                   <svg className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-800 dark:text-gray-200 truncate font-medium">
                     {entry.label || "Untitled"}
@@ -128,21 +155,30 @@ export default function TrashPage() {
                   </p>
                 </div>
 
-                {/* Actions */}
                 <div className="shrink-0 flex items-center gap-2">
-                  <button
-                    onClick={() => handleRestore(entry)}
-                    className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
-                  >
-                    Restore
-                  </button>
-                  <span className="text-gray-200 dark:text-gray-700">·</span>
-                  <button
-                    onClick={() => handleDelete(entry.id)}
-                    className="text-xs text-red-400 hover:text-red-500 dark:hover:text-red-300 transition-colors"
-                  >
-                    Delete
-                  </button>
+                  {confirmDeleteId === entry.id ? (
+                    <>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Delete?</span>
+                      <button onClick={() => handleDelete(entry.id)} className="text-xs font-medium text-red-500 hover:text-red-600 transition-colors">Yes</button>
+                      <button onClick={() => setConfirmDeleteId(null)} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">No</button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleRestore(entry)}
+                        className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
+                      >
+                        Restore
+                      </button>
+                      <span className="text-gray-200 dark:text-gray-700">·</span>
+                      <button
+                        onClick={() => setConfirmDeleteId(entry.id)}
+                        className="text-xs text-red-400 hover:text-red-500 dark:hover:text-red-300 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

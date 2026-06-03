@@ -38,6 +38,9 @@ html, body {
 
 /* Rose — light, rose/pink accent */
 [data-theme="rose"] {
+  --color-gray-50:  #fff5f6;
+  --color-gray-100: #fde8ec;
+  --color-gray-200: #fad0d8;
   --color-violet-50:  #fff1f2;
   --color-violet-100: #ffe4e6;
   --color-violet-200: #fecdd3;
@@ -52,6 +55,9 @@ html, body {
 
 /* Sage — light, emerald accent */
 [data-theme="sage"] {
+  --color-gray-50:  #f3fdf7;
+  --color-gray-100: #e4f7ed;
+  --color-gray-200: #c8eeda;
   --color-violet-50:  #ecfdf5;
   --color-violet-100: #d1fae5;
   --color-violet-200: #a7f3d0;
@@ -66,6 +72,9 @@ html, body {
 
 /* Lemon — light, amber accent */
 [data-theme="lemon"] {
+  --color-gray-50:  #fffdf0;
+  --color-gray-100: #fdf8de;
+  --color-gray-200: #faf0bc;
   --color-violet-50:  #fffbeb;
   --color-violet-100: #fef3c7;
   --color-violet-200: #fde68a;
@@ -188,6 +197,9 @@ html, body {
 
 /* Mint — light, teal accent */
 [data-theme="mint"] {
+  --color-gray-50:  #f0fdfb;
+  --color-gray-100: #e0faf6;
+  --color-gray-200: #c0f4ec;
   --color-violet-50:  #f0fdfa;
   --color-violet-100: #ccfbf1;
   --color-violet-200: #99f6e4;
@@ -202,6 +214,9 @@ html, body {
 
 /* Sky — light, blue accent */
 [data-theme="sky"] {
+  --color-gray-50:  #f0f5ff;
+  --color-gray-100: #e1eeff;
+  --color-gray-200: #c3dcff;
   --color-violet-50:  #eff6ff;
   --color-violet-100: #dbeafe;
   --color-violet-200: #bfdbfe;
@@ -216,6 +231,9 @@ html, body {
 
 /* Grape — light, deep indigo accent */
 [data-theme="grape"] {
+  --color-gray-50:  #f3f1ff;
+  --color-gray-100: #e9e5ff;
+  --color-gray-200: #d2caff;
   --color-violet-50:  #eef2ff;
   --color-violet-100: #e0e7ff;
   --color-violet-200: #c7d2fe;
@@ -320,6 +338,9 @@ html, body {
 
 /* Coral — light, warm orange-red accent */
 [data-theme="coral"] {
+  --color-gray-50:  #fff4f0;
+  --color-gray-100: #ffe7de;
+  --color-gray-200: #ffcfbc;
   --color-violet-50:  #fff4f0;
   --color-violet-100: #ffe3d9;
   --color-violet-200: #ffc4ad;
@@ -334,6 +355,9 @@ html, body {
 
 /* Candy — light, hot pink/fuchsia accent */
 [data-theme="candy"] {
+  --color-gray-50:  #fdf3f9;
+  --color-gray-100: #fbe5f3;
+  --color-gray-200: #f7cbe6;
   --color-violet-50:  #fdf2f8;
   --color-violet-100: #fce7f3;
   --color-violet-200: #fbcfe8;
@@ -348,6 +372,9 @@ html, body {
 
 /* Cherry — light, deep red accent */
 [data-theme="cherry"] {
+  --color-gray-50:  #fff2f2;
+  --color-gray-100: #fee4e4;
+  --color-gray-200: #fcc8c8;
   --color-violet-50:  #fef2f2;
   --color-violet-100: #fee2e2;
   --color-violet-200: #fecaca;
