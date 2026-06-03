@@ -69,7 +69,7 @@ function saveViewState(rootId: string, collapsed: Set<string>, hidden: Set<strin
     const all: Record<string, ViewState> = raw ? JSON.parse(raw) : {};
     all[rootId] = { collapsed: Array.from(collapsed), hidden: Array.from(hidden) };
     localStorage.setItem(VIEW_STATE_KEY, JSON.stringify(all));
-  } catch {}
+  } catch { }
 }
 
 function getSortedChildren(parentId: string, nodes: NodesMap, childOrders: Record<string, string[]>): DiaryNode[] {
@@ -355,13 +355,13 @@ function NoteNode({
                 ? <span className="text-gray-400 dark:text-gray-600 select-none tracking-widest">••••••••••</span>
                 : node.content
                   ? <MarkdownText content={node.content} onToggleCheckbox={(lineIndex) => {
-                      const lines = node.content.split("\n");
-                      const line = lines[lineIndex];
-                      lines[lineIndex] = /^- \[ \]/.test(line)
-                        ? line.replace("- [ ]", "- [x]")
-                        : line.replace(/^- \[[xX]\]/, "- [ ]");
-                      onAutoSave(node.id, lines.join("\n"));
-                    }} />
+                    const lines = node.content.split("\n");
+                    const line = lines[lineIndex];
+                    lines[lineIndex] = /^- \[ \]/.test(line)
+                      ? line.replace("- [ ]", "- [x]")
+                      : line.replace(/^- \[[xX]\]/, "- [ ]");
+                    onAutoSave(node.id, lines.join("\n"));
+                  }} />
                   : <span className="italic text-gray-300 dark:text-gray-600">Empty note</span>
               }
             </button>
@@ -831,7 +831,7 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
           onDrop={handleContainerDrop}
           onDragLeave={handleContainerDragLeave}
         >
-          <div className="p-5 sm:p-8 max-w-2xl mb-120">
+          <div className="pl-2 pr-5 py-4 sm:pl-3 sm:pr-8 sm:py-6 max-w-2xl mb-120">
             <NoteNode node={root} nodes={nodes} depth={0} isLast={true} parentLines={[]}
               editingId={editingId} highlightId={highlightId} childOrders={childOrders} nodeColors={nodeColors} drag={drag} dragMode={dragMode}
               onEdit={setEditingId} onSave={handleSave} onAutoSave={handleAutoSave} onCancel={handleCancel} onAddChild={handleAddChild} onDelete={onDelete} onDeleteKeepChildren={onDeleteKeepChildren} onMove={onMove} onNodeColorChange={handleNodeColorChange}
