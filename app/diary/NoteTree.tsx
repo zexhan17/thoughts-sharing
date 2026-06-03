@@ -315,7 +315,7 @@ function NoteNode({
         {depth > 0 && (
           <div className="shrink-0 relative self-stretch" style={{ width: COL }}>
             <div className="absolute w-px bg-gray-200 dark:bg-gray-700" style={{ left: LX, top: 0, height: isLast ? MID : "100%" }} />
-            <div className="absolute h-px bg-gray-200 dark:bg-gray-700" style={{ left: LX, top: MID, right: 0 }} />
+            <div className="absolute h-px bg-gray-200 dark:bg-gray-700" style={{ left: LX, top: MID, right: -18 }} />
           </div>
         )}
 
