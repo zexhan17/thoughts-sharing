@@ -202,6 +202,10 @@ function NoteNode({
         const len = areaRef.current?.value.length ?? 0;
         areaRef.current?.setSelectionRange(len, len);
       }, 0);
+      // After virtual keyboard finishes opening (~300ms), scroll the node into the visible area
+      setTimeout(() => {
+        areaRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 350);
     }
   }, [isEditing]); // eslint-disable-line react-hooks/exhaustive-deps
 

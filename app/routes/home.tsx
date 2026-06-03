@@ -85,6 +85,7 @@ export default function Home() {
   const [theme, setTheme] = useState<ThemeId>("snow");
   const isDark = THEMES.find(t => t.id === theme)?.dark ?? false;
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [viewportH, setViewportH] = useState<number | null>(null);
   const [themePickerPos, setThemePickerPos] = useState({ top: 0, left: 0 });
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -160,6 +161,19 @@ export default function Home() {
       const rawColors = localStorage.getItem(COLORS_KEY);
       if (rawColors) setColorsMap(JSON.parse(rawColors));
     } catch { }
+  }, []);
+
+  // Shrink container to visual viewport height so virtual keyboard doesn't cover content
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setViewportH(vv.height);
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
   }, []);
 
   // Sidebar resize (desktop)
@@ -690,7 +704,7 @@ export default function Home() {
 
 
   return (
-    <div className="flex h-dvh bg-white dark:bg-gray-950 overflow-hidden">
+    <div className="flex bg-white dark:bg-gray-950 overflow-hidden" style={{ height: viewportH != null ? `${viewportH}px` : "100dvh" }}>
 
       {/* Hidden file input for import */}
       <input ref={importInputRef} type="file" accept=".json" multiple className="hidden" onChange={handleImportFile} />
