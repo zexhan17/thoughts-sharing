@@ -351,6 +351,16 @@ export default function Home() {
       localStorage.setItem(TRASH_KEY, JSON.stringify(nextTrash));
     }
     deleteNode(id);
+    if (node?.parentId === null) {
+      try {
+        const raw = localStorage.getItem("diary-view-state");
+        if (raw) {
+          const all = JSON.parse(raw);
+          delete all[id];
+          localStorage.setItem("diary-view-state", JSON.stringify(all));
+        }
+      } catch {}
+    }
     if (pinsMap[id]) {
       const next = { ...pinsMap };
       delete next[id];

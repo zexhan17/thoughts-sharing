@@ -48,6 +48,30 @@ function saveNodeColors(colors: Record<string, string>) {
   localStorage.setItem(NODE_COLORS_KEY, JSON.stringify(colors));
 }
 
+const VIEW_STATE_KEY = "diary-view-state";
+type ViewState = { collapsed: string[]; hidden: string[] };
+
+function loadViewState(rootId: string): { collapsed: Set<string>; hidden: Set<string> } {
+  try {
+    const raw = localStorage.getItem(VIEW_STATE_KEY);
+    const all: Record<string, ViewState> = raw ? JSON.parse(raw) : {};
+    const s = all[rootId];
+    if (!s) return { collapsed: new Set(), hidden: new Set() };
+    return { collapsed: new Set(s.collapsed), hidden: new Set(s.hidden) };
+  } catch {
+    return { collapsed: new Set(), hidden: new Set() };
+  }
+}
+
+function saveViewState(rootId: string, collapsed: Set<string>, hidden: Set<string>) {
+  try {
+    const raw = localStorage.getItem(VIEW_STATE_KEY);
+    const all: Record<string, ViewState> = raw ? JSON.parse(raw) : {};
+    all[rootId] = { collapsed: Array.from(collapsed), hidden: Array.from(hidden) };
+    localStorage.setItem(VIEW_STATE_KEY, JSON.stringify(all));
+  } catch {}
+}
+
 function getSortedChildren(parentId: string, nodes: NodesMap, childOrders: Record<string, string[]>): DiaryNode[] {
   const all = Object.values(nodes).filter((n) => n.parentId === parentId);
   const order = childOrders[parentId] ?? [];
@@ -577,9 +601,26 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const viewStateLoadedRef = useRef(false);
 
   useEffect(() => { setChildOrders(loadChildOrders()); }, []);
   useEffect(() => { setNodeColors(loadNodeColors()); }, []);
+
+  // Load collapsed/hidden state from localStorage on mount (component is keyed by rootId so this runs once per thought)
+  useEffect(() => {
+    const { collapsed, hidden } = loadViewState(rootId);
+    setCollapsedIds(collapsed);
+    setHiddenIds(hidden);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist collapsed/hidden state; skip the very first run (before the load effect has applied its data)
+  useEffect(() => {
+    if (!viewStateLoadedRef.current) {
+      viewStateLoadedRef.current = true;
+      return;
+    }
+    saveViewState(rootId, collapsedIds, hiddenIds);
+  }, [rootId, collapsedIds, hiddenIds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setChildOrders((prev) => {
