@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import { useNodes } from "../diary/useNodes";
 import { NoteTree, firstLine } from "../diary/NoteTree";
 import { MapView } from "../diary/MapView";
@@ -95,6 +96,7 @@ function validateBulkExport(data: unknown): data is BulkExport {
 }
 
 export default function Home() {
+  const navigate = useNavigate();
   const { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, deleteNodeOnly, deleteMany, moveNode, exportThought, importThought, importMany, replaceThought, undo, redo, canUndo, canRedo, seedThoughts } = useNodes();
 
   const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
@@ -936,7 +938,7 @@ export default function Home() {
             className="w-full flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 transition-colors py-1"
           >
             <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
             </svg>
             Load sample data
           </button>
@@ -950,7 +952,7 @@ export default function Home() {
             Import
           </button>
           <button
-            onClick={() => setShowTrash(true)}
+            onClick={() => navigate("/trash")}
             className="w-full flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors py-1"
           >
             <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1378,17 +1380,6 @@ export default function Home() {
 
       {/* Shortcuts dialog */}
       {showShortcuts && <ShortcutsDialog onClose={() => setShowShortcuts(false)} />}
-
-      {/* Trash dialog */}
-      {showTrash && (
-        <TrashDialog
-          entries={trashEntries}
-          onRestore={handleRestore}
-          onDeletePermanently={handlePermanentDelete}
-          onClearAll={handleClearTrash}
-          onClose={() => setShowTrash(false)}
-        />
-      )}
 
       {/* Mobile sidebar toggle — bottom-left floating button */}
       <button
