@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ExportData } from "./types";
 
 export type TrashEntry = {
@@ -26,6 +27,19 @@ interface Props {
 }
 
 export function TrashDialog({ entries, onRestore, onDeletePermanently, onClearAll, onClose }: Props) {
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
+
+  function handleDelete(id: string) {
+    onDeletePermanently(id);
+    setConfirmDeleteId(null);
+  }
+
+  function handleClearAll() {
+    onClearAll();
+    setConfirmClearAll(false);
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4 bg-black/40"
@@ -38,12 +52,20 @@ export function TrashDialog({ entries, onRestore, onDeletePermanently, onClearAl
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
           <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">Trash</span>
           {entries.length > 0 && (
-            <button
-              onClick={onClearAll}
-              className="text-xs text-red-400 hover:text-red-500 transition-colors"
-            >
-              Clear all
-            </button>
+            confirmClearAll ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400">Clear all?</span>
+                <button onClick={handleClearAll} className="text-xs font-medium text-red-500 hover:text-red-600 transition-colors">Yes</button>
+                <button onClick={() => setConfirmClearAll(false)} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">No</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmClearAll(true)}
+                className="text-xs text-red-400 hover:text-red-500 transition-colors"
+              >
+                Clear all
+              </button>
+            )
           )}
         </div>
 
@@ -64,18 +86,29 @@ export function TrashDialog({ entries, onRestore, onDeletePermanently, onClearAl
                     Deleted {timeAgo(entry.deletedAt)}
                   </div>
                 </div>
-                <button
-                  onClick={() => onRestore(entry)}
-                  className="shrink-0 text-xs font-medium text-violet-600 dark:text-violet-400 hover:text-violet-700 transition-colors"
-                >
-                  Restore
-                </button>
-                <button
-                  onClick={() => onDeletePermanently(entry.id)}
-                  className="shrink-0 text-xs text-red-400 hover:text-red-500 transition-colors"
-                >
-                  Delete
-                </button>
+                {confirmDeleteId === entry.id ? (
+                  <div className="shrink-0 flex items-center gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Delete?</span>
+                    <button onClick={() => handleDelete(entry.id)} className="text-xs font-medium text-red-500 hover:text-red-600 transition-colors">Yes</button>
+                    <button onClick={() => setConfirmDeleteId(null)} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">No</button>
+                  </div>
+                ) : (
+                  <div className="shrink-0 flex items-center gap-2">
+                    <button
+                      onClick={() => onRestore(entry)}
+                      className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:text-violet-700 transition-colors"
+                    >
+                      Restore
+                    </button>
+                    <span className="text-gray-200 dark:text-gray-700">·</span>
+                    <button
+                      onClick={() => setConfirmDeleteId(entry.id)}
+                      className="text-xs text-red-400 hover:text-red-500 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
             ))
           )}

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
 import { useNodes } from "../diary/useNodes";
 import { NoteTree, firstLine } from "../diary/NoteTree";
 import { MapView } from "../diary/MapView";
@@ -96,7 +95,6 @@ function validateBulkExport(data: unknown): data is BulkExport {
 }
 
 export default function Home() {
-  const navigate = useNavigate();
   const { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, deleteNodeOnly, deleteMany, moveNode, exportThought, importThought, importMany, replaceThought, undo, redo, canUndo, canRedo, seedThoughts } = useNodes();
 
   const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
@@ -112,6 +110,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
   const [movingNodeId, setMovingNodeId] = useState<string | null>(null);
   const [showSaved, setShowSaved] = useState(false);
   const [scrollToId, setScrollToId] = useState<string | null>(null);
@@ -498,6 +497,16 @@ export default function Home() {
     exitSelectionMode();
   }
 
+
+  function handleRestore(entry: TrashEntry) {
+    const id = importThought(entry.snapshot, null);
+    setSelectedRootId(id);
+    const nextTrash = trashEntries.filter((e) => e.id !== entry.id);
+    setTrashEntries(nextTrash);
+    localStorage.setItem(TRASH_KEY, JSON.stringify(nextTrash));
+    setShowTrash(false);
+    toast(`"${entry.label}" restored`);
+  }
 
   function handlePermanentDelete(id: string) {
     const nextTrash = trashEntries.filter((e) => e.id !== id);
@@ -942,7 +951,7 @@ export default function Home() {
             Import
           </button>
           <button
-            onClick={() => navigate("/trash")}
+            onClick={() => setShowTrash(true)}
             className="w-full flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors py-1"
           >
             <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1370,6 +1379,16 @@ export default function Home() {
 
       {/* Shortcuts dialog */}
       {showShortcuts && <ShortcutsDialog onClose={() => setShowShortcuts(false)} />}
+
+      {showTrash && (
+        <TrashDialog
+          entries={trashEntries}
+          onRestore={handleRestore}
+          onDeletePermanently={handlePermanentDelete}
+          onClearAll={handleClearTrash}
+          onClose={() => setShowTrash(false)}
+        />
+      )}
 
       {/* Mobile sidebar toggle — bottom-left floating button */}
       <button
