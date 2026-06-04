@@ -149,7 +149,7 @@ export default function Home() {
 
   const [fabPos, setFabPos] = useState<{ x: number; y: number } | null>(null);
   const fabRef = useRef<HTMLButtonElement>(null);
-  const fabDragRef = useRef<{ startPtrX: number; startPtrY: number; startBtnX: number; startBtnY: number; btnW: number; btnH: number; moved: boolean } | null>(null);
+  const fabDragRef = useRef<{ startPtrX: number; startPtrY: number; startBtnX: number; startBtnY: number; btnW: number; btnH: number; moved: boolean; startTime: number } | null>(null);
 
   const prevRootRef = useRef<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -773,6 +773,7 @@ export default function Home() {
       btnW: rect.width,
       btnH: rect.height,
       moved: false,
+      startTime: Date.now(),
     };
   }
 
@@ -793,7 +794,7 @@ export default function Home() {
     const drag = fabDragRef.current;
     fabDragRef.current = null;
     if (!drag) return;
-    if (!drag.moved) {
+    if (!drag.moved && Date.now() - drag.startTime < 400) {
       setSidebarOpen((o) => !o);
     } else if (fabPos) {
       localStorage.setItem("fab-pos", JSON.stringify(fabPos));
