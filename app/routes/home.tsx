@@ -132,6 +132,9 @@ export default function Home() {
   const [revealSignal, setRevealSignal] = useState(0);
   const [anyHidden, setAnyHidden] = useState(false);
   const [dragMode, setDragMode] = useState(false);
+  const [nodeSelectionMode, setNodeSelectionMode] = useState(false);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
+  const [showDeleteNodesConfirm, setShowDeleteNodesConfirm] = useState(false);
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -143,6 +146,10 @@ export default function Home() {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const [sidebarWidth, setSidebarWidth] = useState(280);
+
+  const [fabPos, setFabPos] = useState<{ x: number; y: number } | null>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
+  const fabDragRef = useRef<{ startPtrX: number; startPtrY: number; startBtnX: number; startBtnY: number; btnW: number; btnH: number; moved: boolean } | null>(null);
 
   const prevRootRef = useRef<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -179,6 +186,20 @@ export default function Home() {
       const rawColors = localStorage.getItem(COLORS_KEY);
       if (rawColors) setColorsMap(JSON.parse(rawColors));
     } catch { }
+    try {
+      const rawFab = localStorage.getItem("fab-pos");
+      if (rawFab) {
+        const p = JSON.parse(rawFab);
+        setFabPos({
+          x: Math.max(0, Math.min(window.innerWidth - 60, p.x)),
+          y: Math.max(0, Math.min(window.innerHeight - 44, p.y)),
+        });
+      } else {
+        setFabPos({ x: 16, y: window.innerHeight - 64 });
+      }
+    } catch {
+      setFabPos({ x: 16, y: window.innerHeight - 64 });
+    }
   }, []);
 
   // Shrink container when virtual keyboard is open; ignore normal browser-chrome resize
@@ -368,6 +389,7 @@ export default function Home() {
   function handleSelectRoot(id: string) {
     setSelectedRootId(id);
     setInitialEditId(null);
+    exitNodeSelectionMode();
     if (window.innerWidth < 768) setSidebarOpen(false);
     if (isLocked(id)) {
       setPinError("");
@@ -463,6 +485,24 @@ export default function Home() {
   function exitSelectionMode() {
     setSelectionMode(false);
     setSelectedIds(new Set());
+  }
+
+  function exitNodeSelectionMode() {
+    setNodeSelectionMode(false);
+    setSelectedNodeIds(new Set());
+  }
+
+  function handleNodeToggleSelect(id: string) {
+    setSelectedNodeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function handleDeleteSelectedNodes() {
+    deleteMany(Array.from(selectedNodeIds));
+    exitNodeSelectionMode();
   }
 
   function handleDeleteSelected() {
@@ -719,6 +759,45 @@ export default function Home() {
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
     e.preventDefault();
+  }
+
+  function handleFabPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const rect = e.currentTarget.getBoundingClientRect();
+    fabDragRef.current = {
+      startPtrX: e.clientX,
+      startPtrY: e.clientY,
+      startBtnX: fabPos?.x ?? 16,
+      startBtnY: fabPos?.y ?? (window.innerHeight - 64),
+      btnW: rect.width,
+      btnH: rect.height,
+      moved: false,
+    };
+  }
+
+  function handleFabPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
+    const drag = fabDragRef.current;
+    if (!drag) return;
+    const dx = e.clientX - drag.startPtrX;
+    const dy = e.clientY - drag.startPtrY;
+    if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+    drag.moved = true;
+    setFabPos({
+      x: Math.max(0, Math.min(window.innerWidth - drag.btnW, drag.startBtnX + dx)),
+      y: Math.max(0, Math.min(window.innerHeight - drag.btnH, drag.startBtnY + dy)),
+    });
+  }
+
+  function handleFabPointerUp() {
+    const drag = fabDragRef.current;
+    fabDragRef.current = null;
+    if (!drag) return;
+    if (!drag.moved) {
+      setSidebarOpen((o) => !o);
+    } else if (fabPos) {
+      localStorage.setItem("fab-pos", JSON.stringify(fabPos));
+    }
   }
 
 
@@ -1011,6 +1090,28 @@ export default function Home() {
 
         {/* Toolbar */}
         {selectedRootId && nodes[selectedRootId] && !isLocked(selectedRootId) && (
+          nodeSelectionMode ? (
+            <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-1 gap-2">
+              <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                {selectedNodeIds.size} node{selectedNodeIds.size !== 1 ? "s" : ""} selected
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setShowDeleteNodesConfirm(true)}
+                  disabled={selectedNodeIds.size === 0}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${selectedNodeIds.size > 0 ? "bg-red-500 hover:bg-red-600 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-300 dark:text-gray-600 cursor-not-allowed"}`}
+                >
+                  Delete ({selectedNodeIds.size})
+                </button>
+                <button
+                  onClick={exitNodeSelectionMode}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
           <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-1 gap-2 flex-wrap">
             {/* Left: view toggle + collapse/expand */}
             <div className="flex items-center gap-1">
@@ -1029,7 +1130,7 @@ export default function Home() {
                   Tree
                 </button>
                 <button
-                  onClick={() => setViewMode("map")}
+                  onClick={() => { setViewMode("map"); exitNodeSelectionMode(); }}
                   title="Map view"
                   className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${viewMode === "map"
                     ? "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm"
@@ -1079,6 +1180,15 @@ export default function Home() {
                     className={`sm:hidden w-7 h-7 flex items-center justify-center rounded-md transition-colors ${dragMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30" : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
                   >
                     <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" /></svg>
+                  </button>
+                  <button
+                    onClick={() => setNodeSelectionMode((s) => !s)}
+                    title="Select nodes to delete"
+                    className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors ${nodeSelectionMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30" : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
                   </button>
                 </>
               )}
@@ -1201,6 +1311,7 @@ export default function Home() {
               </button>
             </div>
           </div>
+          )
         )}
 
         {shareToast && (
@@ -1269,6 +1380,9 @@ export default function Home() {
               dragMode={dragMode}
               onMove={(nodeId) => setMovingNodeId(nodeId)}
               onReparent={(nodeId, newParentId) => moveNode(nodeId, newParentId)}
+              nodeSelectionMode={nodeSelectionMode}
+              selectedNodeIds={selectedNodeIds}
+              onNodeToggleSelect={handleNodeToggleSelect}
             />
           )
         ) : (
@@ -1306,6 +1420,14 @@ export default function Home() {
           message="Delete this entire thought and all its nodes?"
           onConfirm={() => { setShowDeleteConfirm(false); handleDeleteNode(selectedRootId); }}
           onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
+
+      {showDeleteNodesConfirm && (
+        <ConfirmDialog
+          message={`Permanently delete ${selectedNodeIds.size} node${selectedNodeIds.size !== 1 ? "s" : ""} and their children?`}
+          onConfirm={() => { setShowDeleteNodesConfirm(false); handleDeleteSelectedNodes(); }}
+          onCancel={() => setShowDeleteNodesConfirm(false)}
         />
       )}
 
@@ -1390,10 +1512,15 @@ export default function Home() {
         />
       )}
 
-      {/* Mobile sidebar toggle — bottom-left floating button */}
+      {/* Mobile sidebar toggle — draggable floating button */}
       <button
-        onClick={() => setSidebarOpen((o) => !o)}
-        className={`md:hidden fixed bottom-5 left-4 z-40 flex items-center gap-2 pl-3 pr-4 h-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-full shadow-lg text-gray-700 dark:text-gray-200 active:scale-95 transition-all ${sidebarOpen ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+        ref={fabRef}
+        onPointerDown={handleFabPointerDown}
+        onPointerMove={handleFabPointerMove}
+        onPointerUp={handleFabPointerUp}
+        onPointerCancel={() => { fabDragRef.current = null; }}
+        className={`md:hidden fixed z-40 flex items-center gap-2 pl-3 pr-4 h-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-full shadow-lg text-gray-700 dark:text-gray-200 touch-none select-none transition-opacity ${sidebarOpen ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+        style={fabPos ? { left: fabPos.x, top: fabPos.y } : { bottom: 20, left: 16 }}
       >
         <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />

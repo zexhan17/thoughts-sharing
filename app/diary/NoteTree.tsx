@@ -111,6 +111,13 @@ interface HideCtx {
 }
 const HideContext = createContext<HideCtx>({ hiddenIds: new Set(), toggleHidden: () => { } });
 
+interface NodeSelectCtx {
+  active: boolean;
+  selected: Set<string>;
+  toggle: (id: string) => void;
+}
+const NodeSelectContext = createContext<NodeSelectCtx>({ active: false, selected: new Set(), toggle: () => {} });
+
 interface DropTarget {
   parentId: string | null;
   beforeId: string | null;
@@ -164,6 +171,9 @@ function NoteNode({
   const { hiddenIds, toggleHidden } = useContext(HideContext);
   const isDirectlyHidden = hiddenIds.has(node.id);
   const isHidden = isEffectivelyHidden(node.id, nodes, hiddenIds);
+  const { active: selectActive, selected: nodeSelected, toggle: selectToggle } = useContext(NodeSelectContext);
+  const selectable = selectActive && depth > 0;
+  const isNodeSelected = nodeSelected.has(node.id);
 
   const [draft, setDraft] = useState(node.content);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -301,12 +311,15 @@ function NoteNode({
         data-parent-id={node.parentId ?? "null"}
         className={`flex items-start group relative transition-colors ${isDragging ? "opacity-40" : ""
           } ${isHighlighted ? "rounded-lg ring-2 ring-yellow-400 dark:ring-yellow-500 bg-yellow-50 dark:bg-yellow-900/25" : ""
-          } ${hasChildren ? "sticky bg-white dark:bg-gray-950" : ""} ${nodeColor && !isHighlighted ? "rounded-md" : ""}`}
+          } ${hasChildren ? "sticky bg-white dark:bg-gray-950" : ""} ${nodeColor && !isHighlighted ? "rounded-md" : ""
+          } ${selectable ? "cursor-pointer" : ""
+          } ${selectable && isNodeSelected ? "bg-violet-50 dark:bg-violet-900/20 rounded-md" : ""}`}
         style={rowStyle}
         data-depth={depth}
-        draggable={!isEditing}
-        onDragStart={(e) => { e.stopPropagation(); onDragStart(node.id, node.parentId); }}
-        onDragEnd={(e) => { e.stopPropagation(); onDragEnd(); }}
+        draggable={!isEditing && !selectable}
+        onDragStart={selectable ? undefined : (e) => { e.stopPropagation(); onDragStart(node.id, node.parentId); }}
+        onDragEnd={selectable ? undefined : (e) => { e.stopPropagation(); onDragEnd(); }}
+        onClick={selectable ? () => selectToggle(node.id) : undefined}
       >
         {/* Ancestor vertical lines */}
         {parentLines.map((show, i) => (
@@ -323,19 +336,31 @@ function NoteNode({
           </div>
         )}
 
-        {/* Expand / collapse toggle */}
-        <button
-          onClick={() => hasChildren && toggle(node.id)}
-          className={["shrink-0 flex items-center justify-center rounded w-3 h-7",
-            hasChildren ? "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer" : "cursor-default",
-          ].join(" ")}
-        >
-          {hasChildren && (
-            <svg className={`w-3 h-3 transition-transform ${expanded ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-            </svg>
-          )}
-        </button>
+        {/* Expand / collapse toggle — or checkbox in selection mode */}
+        {selectable ? (
+          <span className="shrink-0 w-3 h-7 flex items-center justify-center">
+            <span className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${isNodeSelected ? "bg-violet-500 border-violet-500" : "border-gray-300 dark:border-gray-600"}`}>
+              {isNodeSelected && (
+                <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </span>
+          </span>
+        ) : (
+          <button
+            onClick={() => hasChildren && toggle(node.id)}
+            className={["shrink-0 flex items-center justify-center rounded w-3 h-7",
+              hasChildren ? "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer" : "cursor-default",
+            ].join(" ")}
+          >
+            {hasChildren && (
+              <svg className={`w-3 h-3 transition-transform ${expanded ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+              </svg>
+            )}
+          </button>
+        )}
 
         {/* Note content */}
         <div className="flex-1 min-w-0 py-0.5">
@@ -353,7 +378,7 @@ function NoteNode({
               />
             </div>
           ) : (
-            <button onClick={() => !isHidden && onEdit(node.id)}
+            <button onClick={(e) => { if (selectable) { e.stopPropagation(); selectToggle(node.id); return; } if (!isHidden) onEdit(node.id); }}
               className={`w-full text-left px-2 py-1 rounded-md text-sm leading-relaxed text-gray-800 dark:text-gray-200 transition-colors ${isHidden ? "cursor-default" : "hover:bg-gray-100 dark:hover:bg-gray-800"}`}>
               {isHidden
                 ? <span className="text-gray-400 dark:text-gray-600 select-none tracking-widest">••••••••••</span>
@@ -373,7 +398,7 @@ function NoteNode({
         </div>
 
         {/* Actions */}
-        {!isEditing && (
+        {!isEditing && !selectable && (
           <>
             {/* Desktop: icon buttons revealed on hover */}
             <div className={`hidden sm:flex items-center gap-0.5 transition-opacity self-start mt-0.5 ${isDirectlyHidden ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
@@ -594,9 +619,12 @@ interface NoteTreeProps {
   onReparent?: (nodeId: string, newParentId: string | null) => void;
   onAnyHiddenChange?: (anyHidden: boolean) => void;
   dragMode?: boolean;
+  nodeSelectionMode?: boolean;
+  selectedNodeIds?: Set<string>;
+  onNodeToggleSelect?: (id: string) => void;
 }
 
-export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandSignal, hideSignal, revealSignal, scrollToId, onUpdate, onCreateChild, onDelete, onDeleteKeepChildren, onMove, onReparent, onAnyHiddenChange, dragMode = false }: NoteTreeProps) {
+export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandSignal, hideSignal, revealSignal, scrollToId, onUpdate, onCreateChild, onDelete, onDeleteKeepChildren, onMove, onReparent, onAnyHiddenChange, dragMode = false, nodeSelectionMode = false, selectedNodeIds, onNodeToggleSelect }: NoteTreeProps) {
   const [editingId, setEditingId] = useState<string | null>(initialEditId);
   const [childOrders, setChildOrders] = useState<Record<string, string[]>>({});
   const [nodeColors, setNodeColors] = useState<Record<string, string>>({});
@@ -823,11 +851,18 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
 
   const hideCtx: HideCtx = { hiddenIds, toggleHidden };
 
+  const nodeSelectCtx: NodeSelectCtx = {
+    active: nodeSelectionMode,
+    selected: selectedNodeIds ?? new Set(),
+    toggle: onNodeToggleSelect ?? (() => {}),
+  };
+
   const containerRect = drag.drop ? containerRef.current?.getBoundingClientRect() : null;
 
   return (
     <HideContext.Provider value={hideCtx}>
       <ExpandContext.Provider value={expandCtx}>
+      <NodeSelectContext.Provider value={nodeSelectCtx}>
         <div
           ref={containerRef}
           className="h-full overflow-y-auto"
@@ -854,6 +889,7 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
           </div>,
           document.body
         )}
+      </NodeSelectContext.Provider>
       </ExpandContext.Provider>
     </HideContext.Provider>
   );
