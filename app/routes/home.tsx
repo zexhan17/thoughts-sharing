@@ -149,7 +149,8 @@ export default function Home() {
 
   const [fabPos, setFabPos] = useState<{ x: number; y: number } | null>(null);
   const fabRef = useRef<HTMLButtonElement>(null);
-  const fabDragRef = useRef<{ startPtrX: number; startPtrY: number; startBtnX: number; startBtnY: number; btnW: number; btnH: number; moved: boolean; startTime: number } | null>(null);
+  const fabDragRef = useRef<{ startPtrX: number; startPtrY: number; startBtnX: number; startBtnY: number; btnW: number; btnH: number; moved: boolean } | null>(null);
+  const fabClickBlockedRef = useRef(false);
 
   const prevRootRef = useRef<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -762,8 +763,8 @@ export default function Home() {
   }
 
   function handleFabPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
-    e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
+    fabClickBlockedRef.current = false;
     const rect = e.currentTarget.getBoundingClientRect();
     fabDragRef.current = {
       startPtrX: e.clientX,
@@ -773,7 +774,6 @@ export default function Home() {
       btnW: rect.width,
       btnH: rect.height,
       moved: false,
-      startTime: Date.now(),
     };
   }
 
@@ -794,11 +794,18 @@ export default function Home() {
     const drag = fabDragRef.current;
     fabDragRef.current = null;
     if (!drag) return;
-    if (!drag.moved && Date.now() - drag.startTime < 400) {
-      setSidebarOpen((o) => !o);
-    } else if (fabPos) {
+    if (drag.moved && fabPos) {
+      fabClickBlockedRef.current = true;
       localStorage.setItem("fab-pos", JSON.stringify(fabPos));
     }
+  }
+
+  function handleFabClick() {
+    if (fabClickBlockedRef.current) {
+      fabClickBlockedRef.current = false;
+      return;
+    }
+    setSidebarOpen((o) => !o);
   }
 
 
@@ -1516,6 +1523,7 @@ export default function Home() {
       {/* Mobile sidebar toggle — draggable floating button */}
       <button
         ref={fabRef}
+        onClick={handleFabClick}
         onPointerDown={handleFabPointerDown}
         onPointerMove={handleFabPointerMove}
         onPointerUp={handleFabPointerUp}
