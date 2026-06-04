@@ -319,14 +319,14 @@ function NoteNode({
         {depth > 0 && (
           <div className="shrink-0 relative self-stretch" style={{ width: COL }}>
             <div className="absolute w-px bg-gray-200 dark:bg-gray-700" style={{ left: LX, top: 0, height: isLast ? MID : "100%" }} />
-            <div className="absolute h-px bg-gray-200 dark:bg-gray-700" style={{ left: LX, top: MID, right: -18 }} />
+            <div className="absolute h-px bg-gray-200 dark:bg-gray-700" style={{ left: LX, top: MID, right: 0 }} />
           </div>
         )}
 
         {/* Expand / collapse toggle */}
         <button
           onClick={() => hasChildren && toggle(node.id)}
-          className={["shrink-0 flex items-center justify-center rounded mr-0.5 w-5 h-7",
+          className={["shrink-0 flex items-center justify-center rounded w-3 h-7",
             hasChildren ? "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer" : "cursor-default",
           ].join(" ")}
         >
