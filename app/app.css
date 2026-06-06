@@ -32,11 +32,11 @@ html, body {
 .anim-slide-left  { animation: slide-from-left  0.22s cubic-bezier(.22,.68,0,1.2) both; }
 .anim-pop-in      { animation: pop-in           0.25s cubic-bezier(.22,.68,0,1.2) both; }
 
-/* ── Themes ──────────────────────────────────────────────────────────────── */
-/* Each theme overrides the Tailwind CSS variables used throughout the app.  */
-/* Dark themes also require the `dark` class on <html> (set by JS).          */
+/* ── Accent Colors ───────────────────────────────────────────────────────── */
+/* data-theme picks the accent color. Dark mode is a separate toggle (dark   */
+/* class on <html>). Every color works in both light and dark mode.           */
+/* "violet" is the Tailwind default — no override needed.                    */
 
-/* Rose — light, rose/pink accent */
 [data-theme="rose"] {
   --color-gray-50:  #fff5f6;
   --color-gray-100: #fde8ec;
@@ -53,8 +53,7 @@ html, body {
   --color-violet-900: #881337;
 }
 
-/* Sage — light, emerald accent */
-[data-theme="sage"] {
+[data-theme="green"] {
   --color-gray-50:  #f3fdf7;
   --color-gray-100: #e4f7ed;
   --color-gray-200: #c8eeda;
@@ -70,8 +69,7 @@ html, body {
   --color-violet-900: #064e3b;
 }
 
-/* Lemon — light, amber accent */
-[data-theme="lemon"] {
+[data-theme="amber"] {
   --color-gray-50:  #fffdf0;
   --color-gray-100: #fdf8de;
   --color-gray-200: #faf0bc;
@@ -87,133 +85,7 @@ html, body {
   --color-violet-900: #78350f;
 }
 
-/* Ocean — dark, deep navy bg + sky-blue accent */
-[data-theme="ocean"] {
-  --color-gray-950: #020c17;
-  --color-gray-900: #041526;
-  --color-gray-800: #0a2744;
-  --color-gray-700: #0f3660;
-  --color-violet-50:  #f0f9ff;
-  --color-violet-100: #e0f2fe;
-  --color-violet-200: #bae6fd;
-  --color-violet-300: #7dd3fc;
-  --color-violet-400: #38bdf8;
-  --color-violet-500: #0ea5e9;
-  --color-violet-600: #0284c7;
-  --color-violet-700: #0369a1;
-  --color-violet-800: #075985;
-  --color-violet-900: #0c4a6e;
-}
-
-/* Forest — dark, deep green bg + emerald accent */
-[data-theme="forest"] {
-  --color-gray-950: #011408;
-  --color-gray-900: #041f0d;
-  --color-gray-800: #083318;
-  --color-gray-700: #0d4624;
-  --color-violet-50:  #ecfdf5;
-  --color-violet-100: #d1fae5;
-  --color-violet-200: #a7f3d0;
-  --color-violet-300: #6ee7b7;
-  --color-violet-400: #34d399;
-  --color-violet-500: #10b981;
-  --color-violet-600: #059669;
-  --color-violet-700: #047857;
-  --color-violet-800: #065f46;
-  --color-violet-900: #064e3b;
-}
-
-/* Sunset — dark, warm charcoal bg + orange accent */
-[data-theme="sunset"] {
-  --color-gray-950: #120804;
-  --color-gray-900: #1c1009;
-  --color-gray-800: #2d1a10;
-  --color-gray-700: #3e2415;
-  --color-violet-50:  #fff7ed;
-  --color-violet-100: #ffedd5;
-  --color-violet-200: #fed7aa;
-  --color-violet-300: #fdba74;
-  --color-violet-400: #fb923c;
-  --color-violet-500: #f97316;
-  --color-violet-600: #ea580c;
-  --color-violet-700: #c2410c;
-  --color-violet-800: #9a3412;
-  --color-violet-900: #7c2d12;
-}
-
-/* Midnight — dark, deepest navy bg + indigo accent */
-[data-theme="midnight"] {
-  --color-gray-950: #01030f;
-  --color-gray-900: #050920;
-  --color-gray-800: #0b1338;
-  --color-gray-700: #111c4f;
-  --color-violet-50:  #eef2ff;
-  --color-violet-100: #e0e7ff;
-  --color-violet-200: #c7d2fe;
-  --color-violet-300: #a5b4fc;
-  --color-violet-400: #818cf8;
-  --color-violet-500: #6366f1;
-  --color-violet-600: #4f46e5;
-  --color-violet-700: #4338ca;
-  --color-violet-800: #3730a3;
-  --color-violet-900: #312e81;
-}
-
-/* Rose Dark — dark, deep rose/burgundy bg + rose accent */
-[data-theme="rose-dark"] {
-  --color-gray-950: #140509;
-  --color-gray-900: #200810;
-  --color-gray-800: #33101c;
-  --color-gray-700: #4a1829;
-  --color-violet-50:  #fff1f2;
-  --color-violet-100: #ffe4e6;
-  --color-violet-200: #fecdd3;
-  --color-violet-300: #fda4af;
-  --color-violet-400: #fb7185;
-  --color-violet-500: #f43f5e;
-  --color-violet-600: #e11d48;
-  --color-violet-700: #be123c;
-  --color-violet-800: #9f1239;
-  --color-violet-900: #881337;
-}
-
-/* Mocha — dark, warm chocolate bg + amber/gold accent */
-[data-theme="mocha"] {
-  --color-gray-950: #0f0800;
-  --color-gray-900: #1c1005;
-  --color-gray-800: #2e1a08;
-  --color-gray-700: #40240c;
-  --color-violet-50:  #fffbeb;
-  --color-violet-100: #fef3c7;
-  --color-violet-200: #fde68a;
-  --color-violet-300: #fcd34d;
-  --color-violet-400: #fbbf24;
-  --color-violet-500: #f59e0b;
-  --color-violet-600: #d97706;
-  --color-violet-700: #b45309;
-  --color-violet-800: #92400e;
-  --color-violet-900: #78350f;
-}
-
-/* Mint — light, teal accent */
-[data-theme="mint"] {
-  --color-gray-50:  #f0fdfb;
-  --color-gray-100: #e0faf6;
-  --color-gray-200: #c0f4ec;
-  --color-violet-50:  #f0fdfa;
-  --color-violet-100: #ccfbf1;
-  --color-violet-200: #99f6e4;
-  --color-violet-300: #5eead4;
-  --color-violet-400: #2dd4bf;
-  --color-violet-500: #14b8a6;
-  --color-violet-600: #0d9488;
-  --color-violet-700: #0f766e;
-  --color-violet-800: #115e59;
-  --color-violet-900: #134e4a;
-}
-
-/* Sky — light, blue accent */
-[data-theme="sky"] {
+[data-theme="blue"] {
   --color-gray-50:  #f0f5ff;
   --color-gray-100: #e1eeff;
   --color-gray-200: #c3dcff;
@@ -229,8 +101,7 @@ html, body {
   --color-violet-900: #1e3a8a;
 }
 
-/* Grape — light, deep indigo accent */
-[data-theme="grape"] {
+[data-theme="indigo"] {
   --color-gray-50:  #f3f1ff;
   --color-gray-100: #e9e5ff;
   --color-gray-200: #d2caff;
@@ -246,84 +117,10 @@ html, body {
   --color-violet-900: #312e81;
 }
 
-/* Dracula — dark, deep purple bg + hot pink accent */
-[data-theme="dracula"] {
-  --color-gray-950: #0d0719;
-  --color-gray-900: #160d24;
-  --color-gray-800: #211334;
-  --color-gray-700: #2d1b45;
-  --color-violet-50:  #fff0f9;
-  --color-violet-100: #ffdaf3;
-  --color-violet-200: #ffb3e6;
-  --color-violet-300: #ff79c6;
-  --color-violet-400: #ff5db7;
-  --color-violet-500: #f032a0;
-  --color-violet-600: #e91e8c;
-  --color-violet-700: #c4146e;
-  --color-violet-800: #9c0f57;
-  --color-violet-900: #6b0a3c;
-}
-
-/* Nord — dark, nordic blue-gray bg + frost accent */
-[data-theme="nord"] {
-  --color-gray-950: #111823;
-  --color-gray-900: #1c2333;
-  --color-gray-800: #232e42;
-  --color-gray-700: #2d3a52;
-  --color-violet-50:  #e8f4f8;
-  --color-violet-100: #d0eaf1;
-  --color-violet-200: #a8d4e6;
-  --color-violet-300: #88c0d0;
-  --color-violet-400: #6bafc4;
-  --color-violet-500: #5e9db0;
-  --color-violet-600: #5e81ac;
-  --color-violet-700: #4c6d94;
-  --color-violet-800: #3b5a7c;
-  --color-violet-900: #2a4264;
-}
-
-/* Ayu — dark, near-black bg + warm gold accent */
-[data-theme="ayu"] {
-  --color-gray-950: #0b0e14;
-  --color-gray-900: #0f1419;
-  --color-gray-800: #161b24;
-  --color-gray-700: #1e2732;
-  --color-violet-50:  #fffbe6;
-  --color-violet-100: #fff3cc;
-  --color-violet-200: #ffe699;
-  --color-violet-300: #f6c96a;
-  --color-violet-400: #f0b940;
-  --color-violet-500: #e6a817;
-  --color-violet-600: #ca9810;
-  --color-violet-700: #a87c0a;
-  --color-violet-800: #866005;
-  --color-violet-900: #644602;
-}
-
-/* Catppuccin Mocha — dark, deep dark bg + mauve accent */
-[data-theme="catppuccin"] {
-  --color-gray-950: #11111b;
-  --color-gray-900: #181825;
-  --color-gray-800: #1e1e2e;
-  --color-gray-700: #313244;
-  --color-violet-50:  #f5f0ff;
-  --color-violet-100: #ede5ff;
-  --color-violet-200: #d8c9fe;
-  --color-violet-300: #c4adfd;
-  --color-violet-400: #cba6f7;
-  --color-violet-500: #b389f5;
-  --color-violet-600: #9a6cf3;
-  --color-violet-700: #7c4ff0;
-  --color-violet-800: #5e33e0;
-  --color-violet-900: #3d1ab8;
-}
-
-/* Slate — dark, slate bg + cyan accent */
-[data-theme="slate"] {
-  --color-gray-950: #020617;
-  --color-gray-900: #0f172a;
-  --color-gray-800: #1e293b;
-  --color-gray-700: #334155;
+[data-theme="cyan"] {
+  --color-gray-50:  #f0fffe;
+  --color-gray-100: #e0fafa;
+  --color-gray-200: #c0f3f5;
   --color-violet-50:  #ecfeff;
   --color-violet-100: #cffafe;
   --color-violet-200: #a5f3fc;
@@ -336,8 +133,23 @@ html, body {
   --color-violet-900: #164e63;
 }
 
-/* Candy — light, hot pink/fuchsia accent */
-[data-theme="candy"] {
+[data-theme="orange"] {
+  --color-gray-50:  #fff7f0;
+  --color-gray-100: #feeee0;
+  --color-gray-200: #fddcbc;
+  --color-violet-50:  #fff7ed;
+  --color-violet-100: #ffedd5;
+  --color-violet-200: #fed7aa;
+  --color-violet-300: #fdba74;
+  --color-violet-400: #fb923c;
+  --color-violet-500: #f97316;
+  --color-violet-600: #ea580c;
+  --color-violet-700: #c2410c;
+  --color-violet-800: #9a3412;
+  --color-violet-900: #7c2d12;
+}
+
+[data-theme="pink"] {
   --color-gray-50:  #fdf3f9;
   --color-gray-100: #fbe5f3;
   --color-gray-200: #f7cbe6;
@@ -351,23 +163,5 @@ html, body {
   --color-violet-700: #be185d;
   --color-violet-800: #9d174d;
   --color-violet-900: #831843;
-}
-
-/* Matrix — dark, terminal green bg + bright green accent */
-[data-theme="matrix"] {
-  --color-gray-950: #000a00;
-  --color-gray-900: #001400;
-  --color-gray-800: #002000;
-  --color-gray-700: #003000;
-  --color-violet-50:  #f0fff0;
-  --color-violet-100: #d4f9d4;
-  --color-violet-200: #a3f0a3;
-  --color-violet-300: #5cd65c;
-  --color-violet-400: #2ec42e;
-  --color-violet-500: #00b300;
-  --color-violet-600: #009900;
-  --color-violet-700: #007a00;
-  --color-violet-800: #005c00;
-  --color-violet-900: #003d00;
 }
 

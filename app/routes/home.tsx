@@ -25,31 +25,18 @@ const LABEL_COLORS = [
   { id: "purple", hex: "#a78bfa" },
   { id: "pink", hex: "#f472b6" },
 ];
-const THEMES = [
-  // Light
-  { id: "snow",       name: "Snow",     dark: false, bg: "#ffffff", accent: "#7c3aed" },
-  { id: "rose",       name: "Rose",     dark: false, bg: "#ffffff", accent: "#e11d48" },
-  { id: "sage",       name: "Sage",     dark: false, bg: "#ffffff", accent: "#059669" },
-  { id: "lemon",      name: "Lemon",    dark: false, bg: "#ffffff", accent: "#d97706" },
-  { id: "mint",       name: "Mint",     dark: false, bg: "#ffffff", accent: "#0d9488" },
-  { id: "sky",        name: "Sky",      dark: false, bg: "#ffffff", accent: "#2563eb" },
-  { id: "grape",      name: "Grape",    dark: false, bg: "#ffffff", accent: "#4f46e5" },
-  { id: "candy",      name: "Candy",    dark: false, bg: "#ffffff", accent: "#db2777" },
-  // Dark
-  { id: "night",      name: "Night",    dark: true,  bg: "#030712", accent: "#7c3aed" },
-  { id: "ocean",      name: "Ocean",    dark: true,  bg: "#020c17", accent: "#0284c7" },
-  { id: "forest",     name: "Forest",   dark: true,  bg: "#011408", accent: "#059669" },
-  { id: "sunset",     name: "Sunset",   dark: true,  bg: "#120804", accent: "#ea580c" },
-  { id: "midnight",   name: "Midnight", dark: true,  bg: "#01030f", accent: "#4f46e5" },
-  { id: "mocha",      name: "Mocha",    dark: true,  bg: "#0f0800", accent: "#d97706" },
-  { id: "rose-dark",  name: "Rose",     dark: true,  bg: "#140509", accent: "#e11d48" },
-  { id: "dracula",    name: "Dracula",  dark: true,  bg: "#0d0719", accent: "#e91e8c" },
-  { id: "nord",       name: "Nord",     dark: true,  bg: "#111823", accent: "#5e81ac" },
-  { id: "catppuccin", name: "Catp.",    dark: true,  bg: "#11111b", accent: "#cba6f7" },
-  { id: "slate",      name: "Slate",    dark: true,  bg: "#020617", accent: "#0891b2" },
-  { id: "matrix",     name: "Matrix",   dark: true,  bg: "#000a00", accent: "#009900" },
+const ACCENT_COLORS = [
+  { id: "violet", name: "Violet", hex: "#7c3aed" },
+  { id: "rose",   name: "Rose",   hex: "#e11d48" },
+  { id: "green",  name: "Green",  hex: "#059669" },
+  { id: "amber",  name: "Amber",  hex: "#d97706" },
+  { id: "blue",   name: "Blue",   hex: "#2563eb" },
+  { id: "indigo", name: "Indigo", hex: "#4f46e5" },
+  { id: "cyan",   name: "Cyan",   hex: "#0891b2" },
+  { id: "orange", name: "Orange", hex: "#ea580c" },
+  { id: "pink",   name: "Pink",   hex: "#db2777" },
 ] as const;
-type ThemeId = typeof THEMES[number]["id"];
+type ColorId = typeof ACCENT_COLORS[number]["id"];
 
 import type { Route } from "./+types/home";
 
@@ -93,8 +80,8 @@ export default function Home() {
   const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
   const [initialEditId, setInitialEditId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"tree" | "map">("tree");
-  const [theme, setTheme] = useState<ThemeId>("snow");
-  const isDark = THEMES.find(t => t.id === theme)?.dark ?? false;
+  const [colorId, setColorId] = useState<ColorId>("violet");
+  const [isDark, setIsDark] = useState(false);
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [viewportH, setViewportH] = useState<number | null>(null);
   const [themePickerPos, setThemePickerPos] = useState({ top: 0, left: 0 });
@@ -163,9 +150,11 @@ export default function Home() {
 
 
   useEffect(() => {
-    const savedTheme = (localStorage.getItem("app-theme") ?? "snow") as ThemeId;
-    const matched = THEMES.find(t => t.id === savedTheme) ? savedTheme : "snow";
-    setTheme(matched);
+    const savedColor = localStorage.getItem("app-color") ?? "violet";
+    const matchedColor = (ACCENT_COLORS.find(c => c.id === savedColor) ? savedColor : "violet") as ColorId;
+    const savedDark = localStorage.getItem("app-dark") === "true";
+    setColorId(matchedColor);
+    setIsDark(savedDark);
     if (window.innerWidth < 768) setSidebarOpen(false);
     const saved = localStorage.getItem("sidebar-width");
     if (saved) {
@@ -361,16 +350,21 @@ export default function Home() {
     setTimeout(() => setShareToast(null), 4000);
   }
 
-  function applyTheme(id: ThemeId) {
-    const t = THEMES.find(th => th.id === id)!;
-    document.documentElement.classList.toggle("dark", t.dark);
-    document.documentElement.setAttribute("data-theme", id);
-    localStorage.setItem("app-theme", id);
+  function applyColor(cid: ColorId, dark: boolean) {
+    document.documentElement.classList.toggle("dark", dark);
+    document.documentElement.setAttribute("data-theme", cid);
+    localStorage.setItem("app-color", cid);
+    localStorage.setItem("app-dark", String(dark));
   }
 
-  function handleThemeChange(id: ThemeId) {
-    setTheme(id);
-    applyTheme(id);
+  function handleColorChange(cid: ColorId) {
+    setColorId(cid);
+    applyColor(cid, isDark);
+  }
+
+  function handleDarkToggle(dark: boolean) {
+    setIsDark(dark);
+    applyColor(colorId, dark);
   }
 
   function handleCreateRoot() {
@@ -882,7 +876,7 @@ export default function Home() {
                 <button
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
-                    const w = 296;
+                    const w = 220;
                     setThemePickerPos({ top: rect.bottom + 4, left: Math.max(4, Math.min(rect.left, window.innerWidth - w - 4)) });
                     setShowThemePicker(s => !s);
                   }}
@@ -1535,41 +1529,46 @@ export default function Home() {
           <div className="fixed inset-0 z-40" onClick={() => setShowThemePicker(false)} />
           <div
             className="fixed z-50 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-3"
-            style={{ top: themePickerPos.top, left: themePickerPos.left, width: 296 }}
+            style={{ top: themePickerPos.top, left: themePickerPos.left, width: 220 }}
           >
-            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-0.5">Light</p>
-            <div className="grid grid-cols-5 gap-1.5 mb-3">
-              {THEMES.filter(t => !t.dark).map(t => (
+            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2.5 px-0.5">Color</p>
+            <div className="grid grid-cols-9 gap-1.5 mb-3">
+              {ACCENT_COLORS.map(c => (
                 <button
-                  key={t.id}
-                  title={t.name}
-                  onClick={() => { handleThemeChange(t.id); setShowThemePicker(false); }}
-                  className={`flex flex-col items-center gap-1.5 p-1.5 rounded-xl transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${theme === t.id ? "ring-2 ring-violet-500 dark:ring-violet-400" : ""}`}
-                >
-                  <div className="w-9 h-6 rounded-lg overflow-hidden flex border border-black/10">
-                    <div className="flex-1" style={{ background: t.bg }} />
-                    <div className="w-3" style={{ background: t.accent }} />
-                  </div>
-                  <span className="text-[10px] leading-none text-gray-500 dark:text-gray-400">{t.name}</span>
-                </button>
+                  key={c.id}
+                  title={c.name}
+                  onClick={() => { handleColorChange(c.id); }}
+                  className="w-6 h-6 rounded-full transition-transform hover:scale-110 active:scale-95"
+                  style={{
+                    background: c.hex,
+                    outline: colorId === c.id ? `2px solid ${c.hex}` : "none",
+                    outlineOffset: "2px",
+                    transform: colorId === c.id ? "scale(1.15)" : undefined,
+                  }}
+                />
               ))}
             </div>
-            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-0.5">Dark</p>
-            <div className="grid grid-cols-5 gap-1.5">
-              {THEMES.filter(t => t.dark).map(t => (
-                <button
-                  key={t.id}
-                  title={t.name}
-                  onClick={() => { handleThemeChange(t.id); setShowThemePicker(false); }}
-                  className={`flex flex-col items-center gap-1.5 p-1.5 rounded-xl transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${theme === t.id ? "ring-2 ring-violet-500 dark:ring-violet-400" : ""}`}
-                >
-                  <div className="w-9 h-6 rounded-lg overflow-hidden flex border border-black/10">
-                    <div className="flex-1" style={{ background: t.bg }} />
-                    <div className="w-3" style={{ background: t.accent }} />
-                  </div>
-                  <span className="text-[10px] leading-none text-gray-500 dark:text-gray-400">{t.name}</span>
-                </button>
-              ))}
+            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-0.5">Mode</p>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => { handleDarkToggle(false); setShowThemePicker(false); }}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${!isDark ? "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300" : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="4" strokeWidth="2" />
+                  <path strokeLinecap="round" strokeWidth="2" d="M12 2v2m0 16v2M2 12h2m16 0h2m-3.5-7.5-1.5 1.5m-9 9-1.5 1.5m0-12 1.5 1.5m9 9 1.5 1.5" />
+                </svg>
+                Light
+              </button>
+              <button
+                onClick={() => { handleDarkToggle(true); setShowThemePicker(false); }}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300" : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
+              >
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+                Dark
+              </button>
             </div>
           </div>
         </>
