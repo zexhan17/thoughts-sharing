@@ -34,9 +34,7 @@ const THEMES = [
   { id: "mint",       name: "Mint",     dark: false, bg: "#ffffff", accent: "#0d9488" },
   { id: "sky",        name: "Sky",      dark: false, bg: "#ffffff", accent: "#2563eb" },
   { id: "grape",      name: "Grape",    dark: false, bg: "#ffffff", accent: "#4f46e5" },
-  { id: "coral",      name: "Coral",    dark: false, bg: "#ffffff", accent: "#e8431e" },
   { id: "candy",      name: "Candy",    dark: false, bg: "#ffffff", accent: "#db2777" },
-  { id: "cherry",     name: "Cherry",   dark: false, bg: "#ffffff", accent: "#dc2626" },
   // Dark
   { id: "night",      name: "Night",    dark: true,  bg: "#030712", accent: "#7c3aed" },
   { id: "ocean",      name: "Ocean",    dark: true,  bg: "#020c17", accent: "#0284c7" },
@@ -47,14 +45,9 @@ const THEMES = [
   { id: "rose-dark",  name: "Rose",     dark: true,  bg: "#140509", accent: "#e11d48" },
   { id: "dracula",    name: "Dracula",  dark: true,  bg: "#0d0719", accent: "#e91e8c" },
   { id: "nord",       name: "Nord",     dark: true,  bg: "#111823", accent: "#5e81ac" },
-  { id: "ayu",        name: "Ayu",      dark: true,  bg: "#0b0e14", accent: "#e6b450" },
   { id: "catppuccin", name: "Catp.",    dark: true,  bg: "#11111b", accent: "#cba6f7" },
   { id: "slate",      name: "Slate",    dark: true,  bg: "#020617", accent: "#0891b2" },
-  { id: "ruby",       name: "Ruby",     dark: true,  bg: "#130005", accent: "#e60000" },
-  { id: "galaxy",     name: "Galaxy",   dark: true,  bg: "#050008", accent: "#c026d3" },
   { id: "matrix",     name: "Matrix",   dark: true,  bg: "#000a00", accent: "#009900" },
-  { id: "arctic",     name: "Arctic",   dark: true,  bg: "#010812", accent: "#1a87ff" },
-  { id: "ember",      name: "Ember",    dark: true,  bg: "#110502", accent: "#e63a00" },
 ] as const;
 type ThemeId = typeof THEMES[number]["id"];
 

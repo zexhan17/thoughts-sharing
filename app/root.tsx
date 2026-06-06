@@ -35,7 +35,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {/* Prevent theme flash before React hydrates */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){var D=['night','ocean','forest','sunset','midnight','mocha','rose-dark','dracula','nord','ayu','catppuccin','slate','ruby','galaxy','matrix','arctic','ember'];var t=localStorage.getItem('app-theme')||'snow';document.documentElement.setAttribute('data-theme',t);if(D.indexOf(t)!==-1)document.documentElement.classList.add('dark')})()` }} />
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var D=['night','ocean','forest','sunset','midnight','mocha','rose-dark','dracula','nord','catppuccin','slate','matrix'];var t=localStorage.getItem('app-theme')||'snow';document.documentElement.setAttribute('data-theme',t);if(D.indexOf(t)!==-1)document.documentElement.classList.add('dark')})()` }} />
         <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js',{scope:'/'})})}`}} />
         {children}
         <ScrollRestoration />
