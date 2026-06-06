@@ -37,6 +37,118 @@ html, body {
 /* class on <html>). Every color works in both light and dark mode.           */
 /* "violet" is the Tailwind default — no override needed.                    */
 
+[data-theme="teal"] {
+  --color-gray-50:  #f0fdfb;
+  --color-gray-100: #ccfbf1;
+  --color-gray-200: #99f6e4;
+  --color-violet-50:  #f0fdfa;
+  --color-violet-100: #ccfbf1;
+  --color-violet-200: #99f6e4;
+  --color-violet-300: #5eead4;
+  --color-violet-400: #2dd4bf;
+  --color-violet-500: #14b8a6;
+  --color-violet-600: #0d9488;
+  --color-violet-700: #0f766e;
+  --color-violet-800: #115e59;
+  --color-violet-900: #134e4a;
+}
+
+[data-theme="lime"] {
+  --color-gray-50:  #f7fee7;
+  --color-gray-100: #ecfccb;
+  --color-gray-200: #d9f99d;
+  --color-violet-50:  #f7fee7;
+  --color-violet-100: #ecfccb;
+  --color-violet-200: #d9f99d;
+  --color-violet-300: #bef264;
+  --color-violet-400: #a3e635;
+  --color-violet-500: #84cc16;
+  --color-violet-600: #65a30d;
+  --color-violet-700: #4d7c0f;
+  --color-violet-800: #3f6212;
+  --color-violet-900: #365314;
+}
+
+[data-theme="yellow"] {
+  --color-gray-50:  #fefce8;
+  --color-gray-100: #fef9c3;
+  --color-gray-200: #fef08a;
+  --color-violet-50:  #fefce8;
+  --color-violet-100: #fef9c3;
+  --color-violet-200: #fef08a;
+  --color-violet-300: #fde047;
+  --color-violet-400: #facc15;
+  --color-violet-500: #eab308;
+  --color-violet-600: #ca8a04;
+  --color-violet-700: #a16207;
+  --color-violet-800: #854d0e;
+  --color-violet-900: #713f12;
+}
+
+[data-theme="red"] {
+  --color-gray-50:  #fff2f2;
+  --color-gray-100: #fee2e2;
+  --color-gray-200: #fecaca;
+  --color-violet-50:  #fef2f2;
+  --color-violet-100: #fee2e2;
+  --color-violet-200: #fecaca;
+  --color-violet-300: #fca5a5;
+  --color-violet-400: #f87171;
+  --color-violet-500: #ef4444;
+  --color-violet-600: #dc2626;
+  --color-violet-700: #b91c1c;
+  --color-violet-800: #991b1b;
+  --color-violet-900: #7f1d1d;
+}
+
+[data-theme="sky"] {
+  --color-gray-50:  #f0f9ff;
+  --color-gray-100: #e0f2fe;
+  --color-gray-200: #bae6fd;
+  --color-violet-50:  #f0f9ff;
+  --color-violet-100: #e0f2fe;
+  --color-violet-200: #bae6fd;
+  --color-violet-300: #7dd3fc;
+  --color-violet-400: #38bdf8;
+  --color-violet-500: #0ea5e9;
+  --color-violet-600: #0284c7;
+  --color-violet-700: #0369a1;
+  --color-violet-800: #075985;
+  --color-violet-900: #0c4a6e;
+}
+
+[data-theme="purple"] {
+  --color-gray-50:  #faf5ff;
+  --color-gray-100: #f3e8ff;
+  --color-gray-200: #e9d5ff;
+  --color-violet-50:  #faf5ff;
+  --color-violet-100: #f3e8ff;
+  --color-violet-200: #e9d5ff;
+  --color-violet-300: #d8b4fe;
+  --color-violet-400: #c084fc;
+  --color-violet-500: #a855f7;
+  --color-violet-600: #9333ea;
+  --color-violet-700: #7e22ce;
+  --color-violet-800: #6b21a8;
+  --color-violet-900: #581c87;
+}
+
+[data-theme="fuchsia"] {
+  --color-gray-50:  #fdf4ff;
+  --color-gray-100: #fae8ff;
+  --color-gray-200: #f5d0fe;
+  --color-violet-50:  #fdf4ff;
+  --color-violet-100: #fae8ff;
+  --color-violet-200: #f5d0fe;
+  --color-violet-300: #f0abfc;
+  --color-violet-400: #e879f9;
+  --color-violet-500: #d946ef;
+  --color-violet-600: #c026d3;
+  --color-violet-700: #a21caf;
+  --color-violet-800: #86198f;
+  --color-violet-900: #701a75;
+}
+
 [data-theme="rose"] {
   --color-gray-50:  #fff5f6;
   --color-gray-100: #fde8ec;

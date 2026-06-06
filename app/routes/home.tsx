@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNodes } from "../diary/useNodes";
 import { NoteTree, firstLine } from "../diary/NoteTree";
 import { MapView } from "../diary/MapView";
@@ -26,15 +27,22 @@ const LABEL_COLORS = [
   { id: "pink", hex: "#f472b6" },
 ];
 const ACCENT_COLORS = [
-  { id: "violet", name: "Violet", hex: "#7c3aed" },
-  { id: "rose",   name: "Rose",   hex: "#e11d48" },
-  { id: "green",  name: "Green",  hex: "#059669" },
-  { id: "amber",  name: "Amber",  hex: "#d97706" },
-  { id: "blue",   name: "Blue",   hex: "#2563eb" },
-  { id: "indigo", name: "Indigo", hex: "#4f46e5" },
-  { id: "cyan",   name: "Cyan",   hex: "#0891b2" },
-  { id: "orange", name: "Orange", hex: "#ea580c" },
-  { id: "pink",   name: "Pink",   hex: "#db2777" },
+  { id: "red",     name: "Red",     hex: "#dc2626" },
+  { id: "rose",    name: "Rose",    hex: "#e11d48" },
+  { id: "orange",  name: "Orange",  hex: "#ea580c" },
+  { id: "amber",   name: "Amber",   hex: "#d97706" },
+  { id: "yellow",  name: "Yellow",  hex: "#ca8a04" },
+  { id: "lime",    name: "Lime",    hex: "#65a30d" },
+  { id: "green",   name: "Green",   hex: "#059669" },
+  { id: "teal",    name: "Teal",    hex: "#0d9488" },
+  { id: "cyan",    name: "Cyan",    hex: "#0891b2" },
+  { id: "sky",     name: "Sky",     hex: "#0284c7" },
+  { id: "blue",    name: "Blue",    hex: "#2563eb" },
+  { id: "indigo",  name: "Indigo",  hex: "#4f46e5" },
+  { id: "violet",  name: "Violet",  hex: "#7c3aed" },
+  { id: "purple",  name: "Purple",  hex: "#9333ea" },
+  { id: "fuchsia", name: "Fuchsia", hex: "#c026d3" },
+  { id: "pink",    name: "Pink",    hex: "#db2777" },
 ] as const;
 type ColorId = typeof ACCENT_COLORS[number]["id"];
 
@@ -357,7 +365,7 @@ export default function Home() {
     localStorage.setItem("app-dark", String(dark));
   }
 
-  function handleColorChange(cid: ColorId) {
+  function handleAccentChange(cid: ColorId) {
     setColorId(cid);
     applyColor(cid, isDark);
   }
@@ -876,7 +884,7 @@ export default function Home() {
                 <button
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
-                    const w = 220;
+                    const w = 244;
                     setThemePickerPos({ top: rect.bottom + 4, left: Math.max(4, Math.min(rect.left, window.innerWidth - w - 4)) });
                     setShowThemePicker(s => !s);
                   }}
@@ -1524,54 +1532,72 @@ export default function Home() {
       </button>
 
       {/* Theme picker popover */}
-      {showThemePicker && (
+      {showThemePicker && createPortal(
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setShowThemePicker(false)} />
+          <div className="fixed inset-0 z-200" onClick={() => setShowThemePicker(false)} />
           <div
-            className="fixed z-50 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-3"
-            style={{ top: themePickerPos.top, left: themePickerPos.left, width: 220 }}
+            className="fixed z-201 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-3"
+            style={{ top: themePickerPos.top, left: themePickerPos.left, width: 244 }}
           >
-            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2.5 px-0.5">Color</p>
-            <div className="grid grid-cols-9 gap-1.5 mb-3">
-              {ACCENT_COLORS.map(c => (
-                <button
-                  key={c.id}
-                  title={c.name}
-                  onClick={() => { handleColorChange(c.id); }}
-                  className="w-6 h-6 rounded-full transition-transform hover:scale-110 active:scale-95"
-                  style={{
-                    background: c.hex,
-                    outline: colorId === c.id ? `2px solid ${c.hex}` : "none",
-                    outlineOffset: "2px",
-                    transform: colorId === c.id ? "scale(1.15)" : undefined,
-                  }}
-                />
-              ))}
-            </div>
-            <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-0.5">Mode</p>
-            <div className="flex gap-1.5">
+            {/* Mode toggle — top */}
+            <div className="flex gap-1.5 mb-3">
               <button
-                onClick={() => { handleDarkToggle(false); setShowThemePicker(false); }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${!isDark ? "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300" : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
+                onClick={() => handleDarkToggle(false)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-colors ${!isDark ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100" : "text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/60"}`}
               >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <circle cx="12" cy="12" r="4" strokeWidth="2" />
                   <path strokeLinecap="round" strokeWidth="2" d="M12 2v2m0 16v2M2 12h2m16 0h2m-3.5-7.5-1.5 1.5m-9 9-1.5 1.5m0-12 1.5 1.5m9 9 1.5 1.5" />
                 </svg>
                 Light
               </button>
               <button
-                onClick={() => { handleDarkToggle(true); setShowThemePicker(false); }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${isDark ? "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300" : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
+                onClick={() => handleDarkToggle(true)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-colors ${isDark ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100" : "text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/60"}`}
               >
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
                 </svg>
                 Dark
               </button>
             </div>
+            {/* Color grid — bottom */}
+            <div className="border-t border-gray-100 dark:border-gray-800 pt-3">
+              <div className="grid grid-cols-4 gap-1">
+                {ACCENT_COLORS.map(c => {
+                  const active = colorId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      title={c.name}
+                      onClick={() => handleAccentChange(c.id)}
+                      className={`flex flex-col items-center gap-1.5 py-2 rounded-xl transition-colors ${active ? "bg-gray-100 dark:bg-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-800/60"}`}
+                    >
+                      <span
+                        className="w-6 h-6 rounded-full flex items-center justify-center"
+                        style={{
+                          background: c.hex,
+                          outline: active ? `2px solid ${c.hex}` : "none",
+                          outlineOffset: "2px",
+                        }}
+                      >
+                        {active && (
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </span>
+                      <span className={`text-[9px] leading-none ${active ? "font-semibold text-gray-800 dark:text-gray-100" : "font-medium text-gray-400 dark:text-gray-500"}`}>
+                        {c.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
 
       {/* Auto-save badge */}
