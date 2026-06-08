@@ -12,6 +12,8 @@ import { ShortcutsDialog } from "../diary/ShortcutsDialog";
 import { TrashDialog } from "../diary/TrashDialog";
 import type { TrashEntry } from "../diary/TrashDialog";
 import { SEED_THOUGHTS } from "../diary/seedData";
+import { AuthProvider, useAuth } from "../auth/AuthContext";
+import { AuthPage } from "../auth/AuthPage";
 
 const TRASH_KEY = "diary-trash";
 const COLORS_KEY = "diary-colors";
@@ -82,8 +84,8 @@ function validateBulkExport(data: unknown): data is BulkExport {
   return d.version === "bulk-2" && Array.isArray(d.thoughts);
 }
 
-export default function Home() {
-  const { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, deleteNodeOnly, deleteMany, moveNode, exportThought, importThought, importMany, replaceThought, undo, redo, canUndo, canRedo, seedThoughts } = useNodes();
+function HomeApp({ onLogout }: { onLogout: () => void }) {
+  const { nodes, hydrated, lastSavedAt, syncStatus, retrySync, createNode, updateNode, deleteNode, deleteNodeOnly, deleteMany, moveNode, exportThought, importThought, importMany, replaceThought, undo, redo, canUndo, canRedo, seedThoughts } = useNodes();
 
   const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
   const [initialEditId, setInitialEditId] = useState<string | null>(null);
@@ -861,9 +863,36 @@ export default function Home() {
             </>
           ) : (
             <>
-              <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                Thoughts
-              </span>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                  Thoughts
+                </span>
+                {syncStatus === 'pending' && (
+                  <span title="Unsaved changes — will sync shortly" className="shrink-0 w-2 h-2 rounded-full bg-yellow-400" />
+                )}
+                {syncStatus === 'syncing' && (
+                  <svg className="w-3 h-3 text-blue-400 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a8 8 0 00-8 8h4z" />
+                  </svg>
+                )}
+                {syncStatus === 'synced' && (
+                  <svg className="w-3 h-3 text-green-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                {syncStatus === 'error' && (
+                  <button
+                    onClick={retrySync}
+                    title="Sync failed — click to retry"
+                    className="shrink-0 text-orange-400 hover:text-orange-500 transition-colors"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    </svg>
+                  </button>
+                )}
+              </div>
               <div className="flex items-center gap-0.5">
                 <button
                   onClick={() => setShowSearch(true)}
@@ -902,6 +931,15 @@ export default function Home() {
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={onLogout}
+                  title="Sign out"
+                  className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
                 </button>
               </div>
@@ -1608,5 +1646,19 @@ export default function Home() {
         Saved
       </div>
     </div>
+  );
+}
+
+function HomeWrapper() {
+  const { user, logout } = useAuth();
+  if (!user) return <AuthPage />;
+  return <HomeApp key={user.id} onLogout={logout} />;
+}
+
+export default function Home() {
+  return (
+    <AuthProvider>
+      <HomeWrapper />
+    </AuthProvider>
   );
 }
