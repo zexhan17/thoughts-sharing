@@ -1,31 +1,40 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router";
 import { useNodes } from "../diary/useNodes";
-import { NoteTree, firstLine } from "../diary/NoteTree";
-import { MapView } from "../diary/MapView";
+import { firstLine } from "../diary/NoteTree";
+import { SearchDialog } from "../diary/SearchDialog";
 import { PinDialog } from "../diary/PinDialog";
 import { ConfirmDialog } from "../diary/ConfirmDialog";
-import { buildShareUrl, decodeShareHash, findExistingRootId } from "../diary/share";
-import { SearchDialog } from "../diary/SearchDialog";
-import { MoveDialog } from "../diary/MoveDialog";
-import { ShortcutsDialog } from "../diary/ShortcutsDialog";
-import { TrashDialog } from "../diary/TrashDialog";
 import type { TrashEntry } from "../diary/TrashDialog";
+import { buildShareUrl } from "../diary/share";
 import { SEED_THOUGHTS } from "../diary/seedData";
+
+import type { Route } from "./+types/home";
+
+export function meta({}: Route.MetaArgs) {
+  return [
+    { title: "Thoughts" },
+    { name: "description", content: "A tree-structured digital notepad" },
+  ];
+}
 
 const TRASH_KEY = "diary-trash";
 const COLORS_KEY = "diary-colors";
+const GLOBAL_LOCK_KEY = "diary-global-lock-hash";
+const LOCKED_IDS_KEY = "diary-locked-ids";
 
 const LABEL_COLORS = [
-  { id: "red", hex: "#f87171" },
+  { id: "red",    hex: "#f87171" },
   { id: "orange", hex: "#fb923c" },
   { id: "yellow", hex: "#facc15" },
-  { id: "green", hex: "#4ade80" },
-  { id: "teal", hex: "#2dd4bf" },
-  { id: "blue", hex: "#60a5fa" },
+  { id: "green",  hex: "#4ade80" },
+  { id: "teal",   hex: "#2dd4bf" },
+  { id: "blue",   hex: "#60a5fa" },
   { id: "purple", hex: "#a78bfa" },
-  { id: "pink", hex: "#f472b6" },
+  { id: "pink",   hex: "#f472b6" },
 ];
+
 const ACCENT_COLORS = [
   { id: "red",     name: "Red",     hex: "#dc2626" },
   { id: "rose",    name: "Rose",    hex: "#e11d48" },
@@ -46,24 +55,7 @@ const ACCENT_COLORS = [
 ] as const;
 type ColorId = typeof ACCENT_COLORS[number]["id"];
 
-import type { Route } from "./+types/home";
-
-export function meta({ }: Route.MetaArgs) {
-  return [
-    { title: "Thought Tree" },
-    { name: "description", content: "A tree-structured digital notepad" },
-  ];
-}
-
-async function hashPin(pin: string, nodeId: string): Promise<string> {
-  const data = new TextEncoder().encode(`${nodeId}:${pin}:diary-lock`);
-  const buf = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-const PINS_KEY = "diary-pins";
+type BulkExport = { version: "bulk-2"; exportedAt: string; thoughts: import("../diary/types").ExportData[] };
 
 function validateExportData(data: unknown): data is import("../diary/types").ExportData {
   if (!data || typeof data !== "object") return false;
@@ -74,288 +66,164 @@ function validateExportData(data: unknown): data is import("../diary/types").Exp
   return typeof t.content === "string" && Array.isArray(t.children);
 }
 
-type BulkExport = { version: "bulk-2"; exportedAt: string; thoughts: import("../diary/types").ExportData[] };
-
 function validateBulkExport(data: unknown): data is BulkExport {
   if (!data || typeof data !== "object") return false;
   const d = data as Record<string, unknown>;
   return d.version === "bulk-2" && Array.isArray(d.thoughts);
 }
 
-export default function Home() {
-  const { nodes, hydrated, lastSavedAt, createNode, updateNode, deleteNode, deleteNodeOnly, deleteMany, moveNode, exportThought, importThought, importMany, replaceThought, undo, redo, canUndo, canRedo, seedThoughts } = useNodes();
+async function hashGlobalPin(pin: string): Promise<string> {
+  const data = new TextEncoder().encode(`vault:${pin}:diary-lock`);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
-  const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
-  const [initialEditId, setInitialEditId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"tree" | "map">("tree");
+function countDescendants(rootId: string, nodes: Record<string, import("../diary/types").DiaryNode>): number {
+  return Object.values(nodes).filter((n) => {
+    let cur: typeof n | undefined = n;
+    while (cur?.parentId) {
+      if (cur.parentId === rootId) return true;
+      cur = nodes[cur.parentId];
+    }
+    return false;
+  }).length;
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function getPreview(rootId: string, nodes: Record<string, import("../diary/types").DiaryNode>): string {
+  const root = nodes[rootId];
+  if (!root) return "";
+  const lines = root.content.split("\n").filter(Boolean);
+  if (lines.length > 1) return lines.slice(1).join(" ").slice(0, 120);
+  const firstChild = Object.values(nodes)
+    .filter((n) => n.parentId === rootId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+  return firstChild ? firstLine(firstChild.content) : "";
+}
+
+export default function Home() {
+  const navigate = useNavigate();
+  const { nodes, hydrated, createNode, deleteNode, deleteMany, exportThought, importThought, importMany, seedThoughts } = useNodes();
+
   const [colorId, setColorId] = useState<ColorId>("violet");
   const [isDark, setIsDark] = useState(false);
   const [showThemePicker, setShowThemePicker] = useState(false);
-  const [viewportH, setViewportH] = useState<number | null>(null);
   const [themePickerPos, setThemePickerPos] = useState({ top: 0, left: 0 });
-  const [shareToast, setShareToast] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [showSearch, setShowSearch] = useState(false);
-  const [showShortcuts, setShowShortcuts] = useState(false);
-  const [showTrash, setShowTrash] = useState(false);
-  const [movingNodeId, setMovingNodeId] = useState<string | null>(null);
-  const [showSaved, setShowSaved] = useState(false);
-  const [scrollToId, setScrollToId] = useState<string | null>(null);
-  const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([]);
+
   const [colorsMap, setColorsMap] = useState<Record<string, string>>({});
-  const [colorPickerRootId, setColorPickerRootId] = useState<string | null>(null);
-  const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
-
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
   const [pinsMap, setPinsMap] = useState<Record<string, string>>({});
-  const [unlockedIds, setUnlockedIds] = useState<Set<string>>(new Set());
-  const [pinDialog, setPinDialog] = useState<{ id: string; mode: "unlock" | "set" | "change-verify" | "change-new" } | null>(null);
-  const [pinError, setPinError] = useState("");
+  const [trashCount, setTrashCount] = useState(0);
+  const [rootOrder, setRootOrder] = useState<string[]>([]);
 
-  const [collapseSignal, setCollapseSignal] = useState(0);
-  const [expandSignal, setExpandSignal] = useState(0);
-  const [hideSignal, setHideSignal] = useState(0);
-  const [revealSignal, setRevealSignal] = useState(0);
-  const [anyHidden, setAnyHidden] = useState(false);
-  const [dragMode, setDragMode] = useState(false);
-  const [nodeSelectionMode, setNodeSelectionMode] = useState(false);
-  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
-  const [showDeleteNodesConfirm, setShowDeleteNodesConfirm] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showOverflow, setShowOverflow] = useState(false);
+  const [toast, setToastMsg] = useState<string | null>(null);
 
+  // ── Selection mode ──
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showExportConfirm, setShowExportConfirm] = useState(false);
 
-  const [rootOrder, setRootOrder] = useState<string[]>([]);
+  // ── Reorder mode ──
+  const [reorderMode, setReorderMode] = useState(false);
+
+  const [globalLockHash, setGlobalLockHash] = useState<string | null>(null);
+  const [globalUnlocked, setGlobalUnlocked] = useState(true);
+  const [lockedIds, setLockedIds] = useState<Set<string>>(new Set());
+  const [vaultDialog, setVaultDialog] = useState<"unlock" | "set" | "change-verify" | "change-new" | null>(null);
+  const [vaultError, setVaultError] = useState("");
+  const [showVaultMenu, setShowVaultMenu] = useState(false);
+
+  const [colorPickerRootId, setColorPickerRootId] = useState<string | null>(null);
+  const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
-  const [sidebarWidth, setSidebarWidth] = useState(280);
-
-  const [fabPos, setFabPos] = useState<{ x: number; y: number } | null>(null);
-  const fabRef = useRef<HTMLButtonElement>(null);
-  const fabDragRef = useRef<{ startPtrX: number; startPtrY: number; startBtnX: number; startBtnY: number; btnW: number; btnH: number; moved: boolean } | null>(null);
-  const fabClickBlockedRef = useRef(false);
-
-  const prevRootRef = useRef<string | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
-  const resizeRef = useRef<{ active: boolean; startX: number; startWidth: number }>({ active: false, startX: 0, startWidth: 280 });
-
-  const isLocked = (id: string | null) => !!id && !!pinsMap[id] && !unlockedIds.has(id);
+  const overflowRef = useRef<HTMLDivElement>(null);
+  const vaultMenuRef = useRef<HTMLDivElement>(null);
 
   const roots = (() => {
     const all = Object.values(nodes).filter((n) => n.parentId === null);
-    const ordered = rootOrder
-      .map((id) => all.find((n) => n.id === id))
-      .filter(Boolean) as typeof all;
-    const unseen = all.filter((n) => !rootOrder.includes(n.id))
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const ordered = rootOrder.map((id) => all.find((n) => n.id === id)).filter(Boolean) as typeof all;
+    const unseen = all.filter((n) => !rootOrder.includes(n.id)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     return [...ordered, ...unseen];
   })();
 
+  const isVaultLocked = !!globalLockHash && !globalUnlocked;
+  const isProtected = (id: string) => lockedIds.has(id);
+  const isLocked = (id: string) => isProtected(id) && isVaultLocked;
 
   useEffect(() => {
     const savedColor = localStorage.getItem("app-color") ?? "violet";
-    const matchedColor = (ACCENT_COLORS.find(c => c.id === savedColor) ? savedColor : "violet") as ColorId;
-    const savedDark = localStorage.getItem("app-dark") === "true";
+    const matchedColor = (ACCENT_COLORS.find((c) => c.id === savedColor) ? savedColor : "violet") as ColorId;
     setColorId(matchedColor);
-    setIsDark(savedDark);
-    if (window.innerWidth < 768) setSidebarOpen(false);
-    const saved = localStorage.getItem("sidebar-width");
-    if (saved) {
-      const w = parseInt(saved);
-      if (w >= 280 && w <= 480) setSidebarWidth(w);
-    }
-    try {
-      const rawTrash = localStorage.getItem(TRASH_KEY);
-      if (rawTrash) setTrashEntries(JSON.parse(rawTrash));
-    } catch { }
-    try {
-      const rawColors = localStorage.getItem(COLORS_KEY);
-      if (rawColors) setColorsMap(JSON.parse(rawColors));
-    } catch { }
-    try {
-      const rawFab = localStorage.getItem("fab-pos");
-      if (rawFab) {
-        const p = JSON.parse(rawFab);
-        setFabPos({
-          x: Math.max(0, Math.min(window.innerWidth - 60, p.x)),
-          y: Math.max(0, Math.min(window.innerHeight - 44, p.y)),
-        });
-      } else {
-        setFabPos({ x: 16, y: window.innerHeight - 64 });
-      }
-    } catch {
-      setFabPos({ x: 16, y: window.innerHeight - 64 });
-    }
-  }, []);
-
-  // Shrink container when virtual keyboard is open; ignore normal browser-chrome resize
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const update = () => {
-      // Only engage when keyboard is open — viewport shrinks noticeably vs window height
-      const keyboardOpen = window.innerHeight - vv.height > 150;
-      setViewportH(keyboardOpen ? vv.height : null);
-    };
-    vv.addEventListener("resize", update);
-    return () => vv.removeEventListener("resize", update);
-  }, []);
-
-  // Sidebar resize (desktop)
-  useEffect(() => {
-    function onMove(e: MouseEvent) {
-      if (!resizeRef.current.active) return;
-      const w = Math.min(480, Math.max(280, resizeRef.current.startWidth + e.clientX - resizeRef.current.startX));
-      setSidebarWidth(w);
-    }
-    function onUp() {
-      if (!resizeRef.current.active) return;
-      resizeRef.current.active = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    }
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-    return () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-    };
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("sidebar-width", String(sidebarWidth));
-  }, [sidebarWidth]);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("diary-root-order");
-      if (raw) setRootOrder(JSON.parse(raw));
-    } catch { }
+    setIsDark(localStorage.getItem("app-dark") === "true");
+    try { const r = localStorage.getItem(COLORS_KEY); if (r) setColorsMap(JSON.parse(r)); } catch {}
+    const hash = localStorage.getItem(GLOBAL_LOCK_KEY);
+    setGlobalLockHash(hash);
+    if (!hash) { setGlobalUnlocked(true); } else { setGlobalUnlocked(sessionStorage.getItem("diary-vault-unlocked") === "1"); }
+    try { const r = localStorage.getItem(LOCKED_IDS_KEY); if (r) setLockedIds(new Set(JSON.parse(r))); } catch {}
+    try { const r = localStorage.getItem("diary-root-order"); if (r) setRootOrder(JSON.parse(r)); } catch {}
+    try { const r = localStorage.getItem(TRASH_KEY); if (r) setTrashCount(JSON.parse(r).length); } catch {}
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
-    const allRootIds = Object.values(nodes)
-      .filter((n) => n.parentId === null)
-      .map((n) => n.id);
+    const allRootIds = Object.values(nodes).filter((n) => n.parentId === null).map((n) => n.id);
     setRootOrder((prev) => {
       const filtered = prev.filter((id) => allRootIds.includes(id));
-      const unseen = allRootIds
-        .filter((id) => !filtered.includes(id))
-        .sort((a, b) => nodes[a].createdAt.localeCompare(nodes[b].createdAt));
+      const unseen = allRootIds.filter((id) => !filtered.includes(id)).sort((a, b) => nodes[a].createdAt.localeCompare(nodes[b].createdAt));
       const next = [...filtered, ...unseen];
       localStorage.setItem("diary-root-order", JSON.stringify(next));
       return next;
     });
   }, [nodes, hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-save indicator
-  useEffect(() => {
-    if (!lastSavedAt) return;
-    setShowSaved(true);
-    const t = setTimeout(() => setShowSaved(false), 2000);
-    return () => clearTimeout(t);
-  }, [lastSavedAt]);
-
-  // Keyboard shortcuts
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-        e.preventDefault();
-        setShowSearch((s) => !s);
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
-        const tag = (e.target as HTMLElement).tagName;
-        if (tag === "TEXTAREA" || tag === "INPUT") return;
-        e.preventDefault();
-        if (canUndo) undo();
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
-        const tag = (e.target as HTMLElement).tagName;
-        if (tag === "TEXTAREA" || tag === "INPUT") return;
-        e.preventDefault();
-        if (canRedo) redo();
-        return;
-      }
-      if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
-        const tag = (e.target as HTMLElement).tagName;
-        if (tag === "TEXTAREA" || tag === "INPUT") return;
-        setShowShortcuts((s) => !s);
-        return;
-      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") { e.preventDefault(); setShowSearch((s) => !s); }
+      if (e.key === "Escape") { exitSelectionMode(); setReorderMode(false); setShowOverflow(false); setShowVaultMenu(false); }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [undo, redo, canUndo, canRedo]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(PINS_KEY);
-      if (raw) setPinsMap(JSON.parse(raw));
-    } catch { }
-  }, []);
-
-  useEffect(() => {
-    function onVis() {
-      if (document.hidden) setUnlockedIds(new Set());
+    if (!showOverflow) return;
+    function handle(e: MouseEvent) {
+      if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) setShowOverflow(false);
     }
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("pagehide", onVis);
-    return () => {
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("pagehide", onVis);
-    };
-  }, []);
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [showOverflow]);
 
   useEffect(() => {
-    const prev = prevRootRef.current;
-    if (prev && prev !== selectedRootId) {
-      setUnlockedIds((s) => {
-        const n = new Set(s);
-        n.delete(prev);
-        return n;
-      });
+    if (!showVaultMenu) return;
+    function handle(e: MouseEvent) {
+      if (vaultMenuRef.current && !vaultMenuRef.current.contains(e.target as Node)) setShowVaultMenu(false);
     }
-    prevRootRef.current = selectedRootId;
-  }, [selectedRootId]);
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [showVaultMenu]);
 
-  useEffect(() => {
-    if (!hydrated) return;
-    if (!selectedRootId) {
-      const first = Object.values(nodes)
-        .filter((n) => n.parentId === null)
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
-      if (first) setSelectedRootId(first.id);
-    }
-  }, [hydrated, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!hydrated) return;
-    const shared = decodeShareHash(window.location.hash);
-    if (!shared) return;
-    window.location.hash = "";
-    const existingRootId = findExistingRootId(shared, nodes);
-    if (existingRootId) {
-      const id = replaceThought(existingRootId, shared);
-      setSelectedRootId(id);
-      toast(`"${firstLine(shared.thought.content)}" updated`);
-    } else {
-      const id = importThought(shared, null);
-      setSelectedRootId(id);
-      toast(`"${firstLine(shared.thought.content)}" saved to your thoughts`);
-    }
-  }, [hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function toast(msg: string) {
-    setShareToast(msg);
-    setTimeout(() => setShareToast(null), 4000);
+  function showToast(msg: string) {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3500);
   }
 
   function applyColor(cid: ColorId, dark: boolean) {
@@ -365,194 +233,103 @@ export default function Home() {
     localStorage.setItem("app-dark", String(dark));
   }
 
-  function handleAccentChange(cid: ColorId) {
-    setColorId(cid);
-    applyColor(cid, isDark);
-  }
-
-  function handleDarkToggle(dark: boolean) {
-    setIsDark(dark);
-    applyColor(colorId, dark);
-  }
-
   function handleCreateRoot() {
     const id = createNode("", null);
-    setSelectedRootId(id);
-    setInitialEditId(id);
-    if (window.innerWidth < 768) setSidebarOpen(false);
+    navigate(`/thought/${id}`);
   }
 
   function handleSelectRoot(id: string) {
-    setSelectedRootId(id);
-    setInitialEditId(null);
-    exitNodeSelectionMode();
-    if (window.innerWidth < 768) setSidebarOpen(false);
-    if (isLocked(id)) {
-      setPinError("");
-      setPinDialog({ id, mode: "unlock" });
-    }
+    if (reorderMode) return;
+    navigate(`/thought/${id}`);
   }
 
-  function handleDuplicateRoot(id: string) {
-    const exported = exportThought(id);
-    const newId = importThought(exported, null);
-    setSelectedRootId(newId);
-    toast("Thought duplicated");
-  }
-
-  function handleCreateChild(parentId: string): string {
-    return createNode("", parentId);
-  }
-
-  function handleUpdateNode(id: string, content: string) {
-    updateNode(id, content);
-    setInitialEditId(null);
-  }
-
-  function handleDeleteNode(id: string) {
+  function handleDeleteRoot(id: string) {
     const node = nodes[id];
-    if (node?.parentId === null) {
-      // Soft-delete root thoughts to trash
-      const entry: TrashEntry = {
-        id,
-        snapshot: exportThought(id),
-        deletedAt: new Date().toISOString(),
-        label: firstLine(node.content) || "Untitled",
-      };
-      const nextTrash = [entry, ...trashEntries].slice(0, 50);
-      setTrashEntries(nextTrash);
-      localStorage.setItem(TRASH_KEY, JSON.stringify(nextTrash));
-    }
+    if (!node) return;
+    const entry: TrashEntry = {
+      id,
+      snapshot: exportThought(id),
+      deletedAt: new Date().toISOString(),
+      label: firstLine(node.content) || "Untitled",
+    };
+    const rawTrash = (() => { try { const r = localStorage.getItem(TRASH_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })();
+    const nextTrash = [entry, ...rawTrash].slice(0, 50);
+    localStorage.setItem(TRASH_KEY, JSON.stringify(nextTrash));
+    setTrashCount(nextTrash.length);
     deleteNode(id);
-    if (node?.parentId === null) {
-      try {
-        const raw = localStorage.getItem("diary-view-state");
-        if (raw) {
-          const all = JSON.parse(raw);
-          delete all[id];
-          localStorage.setItem("diary-view-state", JSON.stringify(all));
-        }
-      } catch {}
-    }
-    if (pinsMap[id]) {
-      const next = { ...pinsMap };
-      delete next[id];
-      setPinsMap(next);
-      localStorage.setItem(PINS_KEY, JSON.stringify(next));
-    }
-    setUnlockedIds((s) => { const n = new Set(s); n.delete(id); return n; });
-    if (id === selectedRootId) {
-      const remaining = Object.values(nodes)
-        .filter((n) => n.parentId === null && n.id !== id)
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      setSelectedRootId(remaining[0]?.id ?? null);
+    if (lockedIds.has(id)) {
+      setLockedIds(prev => {
+        const next = new Set(prev); next.delete(id);
+        localStorage.setItem(LOCKED_IDS_KEY, JSON.stringify([...next]));
+        return next;
+      });
     }
   }
+
+  function handleDeleteSelected() {
+    const deletable = Array.from(selectedIds);
+    if (deletable.length === 0) { exitSelectionMode(); return; }
+
+    const rawTrash = (() => { try { const r = localStorage.getItem(TRASH_KEY); return r ? JSON.parse(r) : []; } catch { return []; } })();
+    const newEntries: TrashEntry[] = deletable.map((id) => ({
+      id,
+      snapshot: exportThought(id),
+      deletedAt: new Date().toISOString(),
+      label: firstLine(nodes[id]?.content ?? "") || "Untitled",
+    }));
+    const nextTrash = [...newEntries, ...rawTrash].slice(0, 50);
+    localStorage.setItem(TRASH_KEY, JSON.stringify(nextTrash));
+    setTrashCount(nextTrash.length);
+
+    const toUnprotect = deletable.filter(id => lockedIds.has(id));
+    if (toUnprotect.length > 0) {
+      setLockedIds(prev => {
+        const next = new Set(prev);
+        toUnprotect.forEach(id => next.delete(id));
+        localStorage.setItem(LOCKED_IDS_KEY, JSON.stringify([...next]));
+        return next;
+      });
+    }
+
+    deleteMany(deletable);
+    exitSelectionMode();
+    showToast(`${deletable.length} thought${deletable.length !== 1 ? "s" : ""} deleted`);
+  }
+
+  function handleExportSelected() {
+    const exportable = Array.from(selectedIds);
+    if (exportable.length === 0) { showToast("No thoughts selected"); return; }
+    const bulk: BulkExport = { version: "bulk-2", exportedAt: new Date().toISOString(), thoughts: exportable.map((id) => exportThought(id)) };
+    const blob = new Blob([JSON.stringify(bulk, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url;
+    a.download = `thoughts-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click(); URL.revokeObjectURL(url);
+    showToast(`${exportable.length} thought${exportable.length !== 1 ? "s" : ""} exported`);
+    exitSelectionMode();
+  }
+
+  function exitSelectionMode() { setSelectionMode(false); setSelectedIds(new Set()); }
 
   function startLongPress(id: string, e: React.PointerEvent) {
+    if (reorderMode) return;
     longPressOrigin.current = { x: e.clientX, y: e.clientY };
     longPressTimer.current = setTimeout(() => {
       setSelectionMode(true);
       setSelectedIds(new Set([id]));
-      try { navigator.vibrate?.(50); } catch { /* ignore */ }
+      setShowOverflow(false);
+      try { navigator.vibrate?.(50); } catch {}
     }, 500);
   }
-
   function cancelLongPress() {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
     longPressOrigin.current = null;
   }
-
   function checkLongPressMove(e: React.PointerEvent) {
     if (!longPressOrigin.current) return;
     const dx = e.clientX - longPressOrigin.current.x;
     const dy = e.clientY - longPressOrigin.current.y;
-    if (dx * dx + dy * dy > 64) cancelLongPress(); // 8px threshold
-  }
-
-  function handleToggleSelect(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
-
-  function exitSelectionMode() {
-    setSelectionMode(false);
-    setSelectedIds(new Set());
-  }
-
-  function exitNodeSelectionMode() {
-    setNodeSelectionMode(false);
-    setSelectedNodeIds(new Set());
-  }
-
-  function handleNodeToggleSelect(id: string) {
-    setSelectedNodeIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
-
-  function handleDeleteSelectedNodes() {
-    deleteMany(Array.from(selectedNodeIds));
-    exitNodeSelectionMode();
-  }
-
-  function handleDeleteSelected() {
-    if (selectedIds.size === 0) return;
-    const ids = Array.from(selectedIds);
-    // Trash each root
-    for (const id of ids) {
-      const node = nodes[id];
-      if (node?.parentId === null) {
-        const entry: TrashEntry = {
-          id,
-          snapshot: exportThought(id),
-          deletedAt: new Date().toISOString(),
-          label: firstLine(node.content) || "Untitled",
-        };
-        setTrashEntries((prev) => [entry, ...prev].slice(0, 50));
-        localStorage.setItem(TRASH_KEY, JSON.stringify([entry, ...trashEntries].slice(0, 50)));
-      }
-      if (pinsMap[id]) {
-        const next = { ...pinsMap };
-        delete next[id];
-        setPinsMap(next);
-        localStorage.setItem(PINS_KEY, JSON.stringify(next));
-      }
-    }
-    setUnlockedIds((prev) => { const next = new Set(prev); ids.forEach((id) => next.delete(id)); return next; });
-    deleteMany(ids);
-    if (selectedIds.has(selectedRootId ?? "")) {
-      const remaining = Object.values(nodes).filter((n) => n.parentId === null && !selectedIds.has(n.id));
-      setSelectedRootId(remaining[0]?.id ?? null);
-    }
-    exitSelectionMode();
-  }
-
-
-  function handleRestore(entry: TrashEntry) {
-    const id = importThought(entry.snapshot, null);
-    setSelectedRootId(id);
-    const nextTrash = trashEntries.filter((e) => e.id !== entry.id);
-    setTrashEntries(nextTrash);
-    localStorage.setItem(TRASH_KEY, JSON.stringify(nextTrash));
-    setShowTrash(false);
-    toast(`"${entry.label}" restored`);
-  }
-
-  function handlePermanentDelete(id: string) {
-    const nextTrash = trashEntries.filter((e) => e.id !== id);
-    setTrashEntries(nextTrash);
-    localStorage.setItem(TRASH_KEY, JSON.stringify(nextTrash));
-  }
-
-  function handleClearTrash() {
-    setTrashEntries([]);
-    localStorage.setItem(TRASH_KEY, JSON.stringify([]));
+    if (dx * dx + dy * dy > 64) cancelLongPress();
   }
 
   function handleColorChange(rootId: string, color: string | null) {
@@ -563,7 +340,8 @@ export default function Home() {
     setColorPickerRootId(null);
   }
 
-  function handleCopyShare(rootId: string) {
+  function handleCopyShare(rootId: string, e: React.MouseEvent) {
+    e.stopPropagation();
     const data = exportThought(rootId);
     const url = buildShareUrl(data);
     navigator.clipboard.writeText(url).then(() => {
@@ -572,136 +350,78 @@ export default function Home() {
     });
   }
 
-  function handleLockClick(e: React.MouseEvent, rootId: string) {
-    e.stopPropagation();
-    if (!pinsMap[rootId]) {
-      setPinError("");
-      setPinDialog({ id: rootId, mode: "set" });
-    } else if (unlockedIds.has(rootId)) {
-      setUnlockedIds((s) => { const n = new Set(s); n.delete(rootId); return n; });
+  function handleVaultButtonClick() {
+    setShowVaultMenu(false);
+    if (!globalLockHash) {
+      setVaultError(""); setVaultDialog("set");
+    } else if (isVaultLocked) {
+      setVaultError(""); setVaultDialog("unlock");
     } else {
-      setPinError("");
-      setPinDialog({ id: rootId, mode: "unlock" });
+      setShowVaultMenu((s) => !s);
     }
   }
 
-  async function handlePinConfirm(pin: string) {
-    if (!pinDialog) return;
-    const { id, mode } = pinDialog;
-    setPinError("");
-    if (mode === "set" || mode === "change-new") {
-      const hash = await hashPin(pin, id);
-      const next = { ...pinsMap, [id]: hash };
-      setPinsMap(next);
-      localStorage.setItem(PINS_KEY, JSON.stringify(next));
-      setPinDialog(null);
-      if (mode === "change-new") toast("PIN changed");
-    } else if (mode === "unlock") {
-      const hash = await hashPin(pin, id);
-      if (hash === pinsMap[id]) {
-        setUnlockedIds((s) => new Set([...s, id]));
-        setPinDialog(null);
-      } else {
-        setPinError("Incorrect PIN");
-      }
-    } else if (mode === "change-verify") {
-      const hash = await hashPin(pin, id);
-      if (hash === pinsMap[id]) {
-        setPinDialog({ id, mode: "change-new" });
-      } else {
-        setPinError("Incorrect PIN");
-      }
+  async function handleVaultPinConfirm(pin: string) {
+    if (!vaultDialog) return;
+    setVaultError("");
+    if (vaultDialog === "set" || vaultDialog === "change-new") {
+      const hash = await hashGlobalPin(pin);
+      setGlobalLockHash(hash);
+      localStorage.setItem(GLOBAL_LOCK_KEY, hash);
+      setGlobalUnlocked(true);
+      sessionStorage.setItem("diary-vault-unlocked", "1");
+      setVaultDialog(null);
+      showToast(vaultDialog === "set" ? "Vault PIN set" : "Vault PIN updated");
+    } else if (vaultDialog === "unlock") {
+      const hash = await hashGlobalPin(pin);
+      if (hash === globalLockHash) {
+        setGlobalUnlocked(true);
+        sessionStorage.setItem("diary-vault-unlocked", "1");
+        setVaultDialog(null);
+      } else { setVaultError("Incorrect PIN"); }
+    } else if (vaultDialog === "change-verify") {
+      const hash = await hashGlobalPin(pin);
+      if (hash === globalLockHash) { setVaultDialog("change-new"); }
+      else { setVaultError("Incorrect PIN"); }
     }
   }
 
-  function handleSearchSelect(nodeId: string, rootId: string) {
+  function handleToggleProtected(e: React.MouseEvent, id: string) {
+    e.stopPropagation();
+    setLockedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      localStorage.setItem(LOCKED_IDS_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  }
+
+  function handleSearchSelect(_nodeId: string, rootId: string) {
     setShowSearch(false);
-    setSelectedRootId(rootId);
-    setScrollToId(nodeId);
-    if (window.innerWidth < 768) setSidebarOpen(false);
-    setTimeout(() => setScrollToId(null), 3000);
-  }
-
-  function handleRemovePin(rootId: string) {
-    const next = { ...pinsMap };
-    delete next[rootId];
-    setPinsMap(next);
-    localStorage.setItem(PINS_KEY, JSON.stringify(next));
-    setUnlockedIds((s) => { const n = new Set(s); n.delete(rootId); return n; });
-    toast("PIN removed");
-  }
-
-  function handleMoveComplete(newParentId: string | null) {
-    if (!movingNodeId) return;
-    const node = nodes[movingNodeId];
-    if (!node) { setMovingNodeId(null); return; }
-    moveNode(movingNodeId, newParentId);
-    // If moved node was a root and is now a child, or vice-versa, adjust selection
-    if (newParentId === null && node.parentId !== null) {
-      // became a root — select it
-      setSelectedRootId(movingNodeId);
-    } else if (newParentId !== null && node.parentId === null) {
-      // was a root, now a child — find its new root and select that
-      let cur = nodes[newParentId];
-      while (cur?.parentId) cur = nodes[cur.parentId];
-      if (cur) setSelectedRootId(cur.id);
-    }
-    setMovingNodeId(null);
-  }
-
-  function handleExport() {
-    if (!selectedRootId || !nodes[selectedRootId]) return;
-    const data = exportThought(selectedRootId);
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    const name = firstLine(nodes[selectedRootId].content) || "untitled";
-    a.download = `thought-${name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    navigate(`/thought/${rootId}`);
   }
 
   function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
     e.target.value = "";
-
     const collected: import("../diary/types").ExportData[] = [];
-    let failed = 0;
-    let completed = 0;
-
+    let failed = 0; let completed = 0;
     function finish() {
-      if (collected.length === 0) {
-        toast(failed > 0 ? "Import failed — invalid file format" : "No valid data found");
-        return;
-      }
-      const ids = importMany(collected);
-      setSelectedRootId(ids[ids.length - 1]);
-      const msg = collected.length === 1
-        ? `"${firstLine(collected[0].thought.content)}" imported`
-        : `${collected.length} thoughts imported${failed ? `, ${failed} failed` : ""}`;
-      toast(msg);
+      if (collected.length === 0) { showToast(failed > 0 ? "Import failed — invalid file" : "No valid data found"); return; }
+      importMany(collected);
+      const msg = collected.length === 1 ? `"${firstLine(collected[0].thought.content)}" imported` : `${collected.length} thoughts imported${failed ? `, ${failed} failed` : ""}`;
+      showToast(msg);
     }
-
     for (const file of files) {
       const reader = new FileReader();
       reader.onload = (ev) => {
         try {
           const data = JSON.parse(ev.target?.result as string);
-          if (validateBulkExport(data)) {
-            const valid = data.thoughts.filter(validateExportData);
-            failed += data.thoughts.length - valid.length;
-            collected.push(...valid);
-          } else if (validateExportData(data)) {
-            collected.push(data);
-          } else {
-            failed++;
-          }
-        } catch {
-          failed++;
-        }
+          if (validateBulkExport(data)) { const valid = data.thoughts.filter(validateExportData); failed += data.thoughts.length - valid.length; collected.push(...valid); }
+          else if (validateExportData(data)) { collected.push(data); }
+          else { failed++; }
+        } catch { failed++; }
         completed++;
         if (completed === files.length) finish();
       };
@@ -709,887 +429,533 @@ export default function Home() {
     }
   }
 
-  function handleBulkExport() {
-    const exportable = roots.filter((r) => !isLocked(r.id));
-    if (exportable.length === 0) { toast("No unlocked thoughts to export"); return; }
-    const bulk: BulkExport = {
-      version: "bulk-2",
-      exportedAt: new Date().toISOString(),
-      thoughts: exportable.map((r) => exportThought(r.id)),
-    };
-    const blob = new Blob([JSON.stringify(bulk, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `thought-tree-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast(`${exportable.length} thought${exportable.length !== 1 ? "s" : ""} exported`);
-  }
-
   function handleDragStart(id: string) { setDraggedId(id); }
-  function handleDragOver(e: React.DragEvent, id: string) {
-    e.preventDefault();
-    if (id !== draggedId) setDragOverId(id);
-  }
+  function handleDragOver(e: React.DragEvent, id: string) { e.preventDefault(); if (id !== draggedId) setDragOverId(id); }
   function handleDrop(targetId: string) {
     if (!draggedId || draggedId === targetId) return;
     setRootOrder((prev) => {
       const ids = prev.length ? prev : roots.map((r) => r.id);
-      const from = ids.indexOf(draggedId);
-      const to = ids.indexOf(targetId);
+      const from = ids.indexOf(draggedId); const to = ids.indexOf(targetId);
       if (from === -1 || to === -1) return prev;
-      const next = [...ids];
-      next.splice(from, 1);
-      next.splice(to, 0, draggedId);
+      const next = [...ids]; next.splice(from, 1); next.splice(to, 0, draggedId);
       localStorage.setItem("diary-root-order", JSON.stringify(next));
       return next;
     });
-    setDraggedId(null);
-    setDragOverId(null);
+    setDraggedId(null); setDragOverId(null);
   }
   function handleDragEnd() { setDraggedId(null); setDragOverId(null); }
 
-  function handleResizeMouseDown(e: React.MouseEvent) {
-    resizeRef.current = { active: true, startX: e.clientX, startWidth: sidebarWidth };
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    e.preventDefault();
-  }
-
-  function handleFabPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    fabClickBlockedRef.current = false;
-    const rect = e.currentTarget.getBoundingClientRect();
-    fabDragRef.current = {
-      startPtrX: e.clientX,
-      startPtrY: e.clientY,
-      startBtnX: fabPos?.x ?? 16,
-      startBtnY: fabPos?.y ?? (window.innerHeight - 64),
-      btnW: rect.width,
-      btnH: rect.height,
-      moved: false,
-    };
-  }
-
-  function handleFabPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
-    const drag = fabDragRef.current;
-    if (!drag) return;
-    const dx = e.clientX - drag.startPtrX;
-    const dy = e.clientY - drag.startPtrY;
-    if (!drag.moved && Math.hypot(dx, dy) < 6) return;
-    drag.moved = true;
-    setFabPos({
-      x: Math.max(0, Math.min(window.innerWidth - drag.btnW, drag.startBtnX + dx)),
-      y: Math.max(0, Math.min(window.innerHeight - drag.btnH, drag.startBtnY + dy)),
-    });
-  }
-
-  function handleFabPointerUp() {
-    const drag = fabDragRef.current;
-    fabDragRef.current = null;
-    if (!drag) return;
-    if (drag.moved && fabPos) {
-      fabClickBlockedRef.current = true;
-      localStorage.setItem("fab-pos", JSON.stringify(fabPos));
-    }
-  }
-
-  function handleFabClick() {
-    if (fabClickBlockedRef.current) {
-      fabClickBlockedRef.current = false;
-      return;
-    }
-    setSidebarOpen((o) => !o);
-  }
-
+  const displayedRoots = roots.filter(r => !isLocked(r.id));
 
   return (
-    <div className="flex bg-white dark:bg-gray-950 overflow-hidden" style={{ height: viewportH != null ? `${viewportH}px` : "100dvh" }}>
-
-      {/* Hidden file input for import */}
+    <div className="min-h-dvh bg-gray-50 dark:bg-[#0a0a0b]">
       <input ref={importInputRef} type="file" accept=".json" multiple className="hidden" onChange={handleImportFile} />
 
-      {/* Mobile backdrop */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-20 bg-black/30 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      {/* ── Header ── */}
+      <header className="sticky top-0 z-20 bg-gray-50/90 dark:bg-[#0a0a0b]/90 backdrop-blur-md border-b border-gray-200/70 dark:border-gray-800/70">
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-2">
+          {/* Brand */}
+          <div className="flex items-center gap-2.5 mr-auto min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-violet-600 dark:bg-violet-500 flex items-center justify-center shrink-0 shadow-sm">
+              <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+            </div>
+            <span className="font-semibold text-gray-900 dark:text-gray-50 text-[14px] tracking-tight">Thoughts</span>
+            {displayedRoots.length > 0 && (
+              <span className="text-xs text-gray-400 dark:text-gray-600 font-medium">{displayedRoots.length}</span>
+            )}
+          </div>
 
-      {/* Sidebar */}
-      <aside
-        style={{ width: sidebarWidth }}
-        className={[
-          "fixed inset-y-0 left-0 z-30 flex flex-col shrink-0",
-          "border-r border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900",
-          "transition-transform duration-200",
-          "md:relative md:inset-auto md:z-auto md:translate-x-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full",
-        ].join(" ")}
-      >
-
-        {/* Sidebar header */}
-        <div className="px-3 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between shrink-0">
           {selectionMode ? (
-            <>
-              <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+            /* ── Selection mode toolbar ── */
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-300 mr-1">
                 {selectedIds.size} selected
               </span>
-              <div className="flex items-center gap-0.5">
-                <button
-                  onClick={handleDeleteSelected}
-                  disabled={selectedIds.size === 0}
-                  title="Delete selected"
-                  className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors ${selectedIds.size > 0 ? "text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30" : "text-gray-200 dark:text-gray-700 cursor-not-allowed"}`}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-                <button
-                  onClick={exitSelectionMode}
-                  title="Cancel"
-                  className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                Thoughts
-              </span>
-              <div className="flex items-center gap-0.5">
-                <button
-                  onClick={() => setShowSearch(true)}
-                  title="Search (Ctrl+K)"
-                  className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setShowShortcuts(true)}
-                  title="Keyboard shortcuts (?)"
-                  className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xs font-bold"
-                >
-                  ?
-                </button>
-                <button
-                  onClick={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const w = 244;
-                    setThemePickerPos({ top: rect.bottom + 4, left: Math.max(4, Math.min(rect.left, window.innerWidth - w - 4)) });
-                    setShowThemePicker(s => !s);
-                  }}
-                  title="Change theme"
-                  className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={handleCreateRoot}
-                  title="New thought"
-                  className="w-7 h-7 flex items-center justify-center rounded-md text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Root thought list */}
-        <div className="flex-1 overflow-y-auto py-1">
-          {roots.length === 0 ? (
-            <div className="px-4 py-8 text-center">
-              <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">No thoughts yet</p>
-              <button onClick={handleCreateRoot} className="text-xs text-violet-600 dark:text-violet-400 hover:underline">
-                Create one
+              {/* Export selected */}
+              <button
+                onClick={() => selectedIds.size > 0 && setShowExportConfirm(true)}
+                disabled={selectedIds.size === 0}
+                title="Export selected"
+                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${selectedIds.size > 0 ? "text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20" : "text-gray-300 dark:text-gray-700 cursor-not-allowed"}`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              </button>
+              {/* Delete selected */}
+              <button
+                onClick={() => selectedIds.size > 0 && setShowDeleteConfirm(true)}
+                disabled={selectedIds.size === 0}
+                title="Delete selected"
+                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${selectedIds.size > 0 ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20" : "text-gray-300 dark:text-gray-700 cursor-not-allowed"}`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              </button>
+              {/* Exit selection */}
+              <button onClick={exitSelectionMode} title="Cancel"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors ml-0.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
           ) : (
-            roots.map((root) => {
-              const isActive = selectedRootId === root.id;
-              const locked = isLocked(root.id);
-              const hasPin = !!pinsMap[root.id];
+            <div className="flex items-center gap-1">
+              {/* ── Desktop-only icons ── */}
+              <button onClick={() => importInputRef.current?.click()} title="Import thoughts"
+                className="hidden sm:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+              </button>
+
+              {/* Vault lock — always visible */}
+              <div className="relative" ref={vaultMenuRef}>
+                <button
+                  onClick={handleVaultButtonClick}
+                  title={!globalLockHash ? "Set vault PIN" : isVaultLocked ? "Unlock vault" : "Vault unlocked"}
+                  className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+                    isVaultLocked
+                      ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                      : globalLockHash
+                      ? "text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20"
+                      : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  {isVaultLocked
+                    ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
+                  }
+                </button>
+                {showVaultMenu && (
+                  <>
+                    <div className="absolute right-0 top-9 z-50 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-1 min-w-35 anim-pop-in">
+                      <button onClick={() => { setShowVaultMenu(false); setGlobalUnlocked(false); sessionStorage.removeItem("diary-vault-unlocked"); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                        Lock vault
+                      </button>
+                      <button onClick={() => { setShowVaultMenu(false); setVaultError(""); setVaultDialog("change-verify"); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        Change PIN
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Trash — desktop only */}
+              <button onClick={() => navigate("/trash")} title="Trash"
+                className="relative hidden sm:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                {trashCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-gray-400 dark:bg-gray-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                    {trashCount > 9 ? "9+" : trashCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Reorder — desktop only */}
+              {displayedRoots.length > 1 && (
+                <button
+                  onClick={() => { setReorderMode((s) => !s); if (selectionMode) exitSelectionMode(); }}
+                  title={reorderMode ? "Done reordering" : "Reorder thoughts"}
+                  className={`hidden sm:flex w-8 h-8 items-center justify-center rounded-lg transition-colors ${reorderMode ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400" : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800"}`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                </button>
+              )}
+
+              {/* Select — desktop only */}
+              {displayedRoots.length > 0 && (
+                <button
+                  onClick={() => { setSelectionMode((s) => !s); setSelectedIds(new Set()); if (reorderMode) setReorderMode(false); }}
+                  title="Select thoughts"
+                  className={`hidden sm:flex w-8 h-8 items-center justify-center rounded-lg transition-colors ${selectionMode ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400" : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800"}`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" strokeWidth={2} /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12l3 3 5-5" /></svg>
+                </button>
+              )}
+
+              {/* Search — always visible */}
+              <button onClick={() => setShowSearch(true)} title="Search (Ctrl+K)"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              </button>
+
+              {/* Theme — desktop only */}
+              <button
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const w = 244;
+                  setThemePickerPos({ top: rect.bottom + 8, left: Math.max(4, Math.min(rect.left, window.innerWidth - w - 4)) });
+                  setShowThemePicker((s) => !s);
+                }}
+                title="Appearance"
+                className="hidden sm:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" /></svg>
+              </button>
+
+              {/* ⋯ Overflow — mobile only */}
+              <div className="relative flex sm:hidden" ref={overflowRef}>
+                <button
+                  onClick={() => setShowOverflow((s) => !s)}
+                  title="More"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+                </button>
+                {showOverflow && (
+                  <div className="absolute right-0 top-9 z-50 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-1 min-w-44 anim-pop-in">
+                      <button onClick={() => { setShowOverflow(false); importInputRef.current?.click(); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                        Import
+                      </button>
+                      <button onClick={() => { setShowOverflow(false); navigate("/trash"); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        <div className="relative shrink-0">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          {trashCount > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-gray-400 dark:bg-gray-600 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">{trashCount > 9 ? "9+" : trashCount}</span>}
+                        </div>
+                        Trash
+                      </button>
+                      {displayedRoots.length > 1 && (
+                        <button onClick={() => { setShowOverflow(false); setReorderMode((s) => !s); if (selectionMode) exitSelectionMode(); }}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${reorderMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"}`}>
+                          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                          Reorder
+                        </button>
+                      )}
+                      {displayedRoots.length > 0 && (
+                        <button onClick={() => { setShowOverflow(false); setSelectionMode((s) => !s); setSelectedIds(new Set()); if (reorderMode) setReorderMode(false); }}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${selectionMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"}`}>
+                          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" strokeWidth={2} /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12l3 3 5-5" /></svg>
+                          Select
+                        </button>
+                      )}
+                      <div className="border-t border-gray-100 dark:border-gray-800 my-1" />
+                      <button
+                        onClick={(e) => {
+                          setShowOverflow(false);
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const w = 244;
+                          setThemePickerPos({ top: rect.bottom + 8, left: Math.max(4, Math.min(rect.left, window.innerWidth - w - 4)) });
+                          setShowThemePicker(true);
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" /></svg>
+                        Appearance
+                      </button>
+                    </div>
+                )}
+              </div>
+
+              {/* New — icon-only on mobile, text on desktop */}
+              <button onClick={handleCreateRoot} title="New thought"
+                className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm ml-0.5">
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                <span className="hidden sm:inline">New</span>
+              </button>
+            </div>
+          )}
+        </div>
+        {/* Reorder mode banner */}
+        {reorderMode && (
+          <div className="max-w-5xl mx-auto px-4 pb-2 flex items-center gap-2">
+            <span className="text-xs text-violet-600 dark:text-violet-400 font-medium flex items-center gap-1.5">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" /></svg>
+              Drag cards to reorder
+            </span>
+            <button onClick={() => setReorderMode(false)} className="ml-auto text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors font-medium">Done</button>
+          </div>
+        )}
+      </header>
+
+      {/* ── Main content ── */}
+      <main className="max-w-5xl mx-auto px-4 py-6">
+        {!hydrated ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-32 rounded-2xl bg-gray-200/60 dark:bg-gray-800/40 animate-pulse" />
+            ))}
+          </div>
+        ) : displayedRoots.length === 0 && roots.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center anim-fade-up">
+            <div className="w-20 h-20 rounded-3xl bg-violet-50 dark:bg-violet-900/20 flex items-center justify-center mb-6 shadow-sm">
+              <svg className="w-9 h-9 text-violet-400 dark:text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2">Your mind is a blank canvas</h2>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mb-8 max-w-sm leading-relaxed">
+              Capture ideas, plans, and reflections as beautiful tree structures
+            </p>
+            <div className="flex items-center gap-3">
+              <button onClick={handleCreateRoot}
+                className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Create first thought
+              </button>
+              <button onClick={() => { seedThoughts(SEED_THOUGHTS); showToast("Sample thoughts loaded"); }}
+                className="px-5 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors shadow-sm">
+                Load demo
+              </button>
+            </div>
+          </div>
+        ) : displayedRoots.length === 0 && isVaultLocked ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center anim-fade-up">
+            <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center mb-5">
+              <svg className="w-7 h-7 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+            </div>
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">All thoughts are locked</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">Unlock the vault to access them</p>
+            <button onClick={() => { setVaultError(""); setVaultDialog("unlock"); }}
+              className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-xl transition-colors shadow-sm">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
+              Unlock vault
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {displayedRoots.map((root) => {
+              const protected_ = isProtected(root.id);
               const isDragging = draggedId === root.id;
               const isDragOver = dragOverId === root.id;
               const isSelected = selectedIds.has(root.id);
+              const labelHex = LABEL_COLORS.find((c) => c.id === colorsMap[root.id])?.hex;
+              const preview = getPreview(root.id, nodes);
+              const nodeCount = countDescendants(root.id, nodes);
+              const dateStr = formatDate(root.updatedAt ?? root.createdAt);
+
               return (
                 <div
                   key={root.id}
-                  draggable={!selectionMode}
-                  onDragStart={() => { cancelLongPress(); handleDragStart(root.id); }}
-                  onDragOver={selectionMode ? undefined : (e) => handleDragOver(e, root.id)}
-                  onDrop={selectionMode ? undefined : () => handleDrop(root.id)}
-                  onDragEnd={selectionMode ? undefined : handleDragEnd}
+                  draggable={reorderMode}
+                  onDragStart={reorderMode ? () => handleDragStart(root.id) : undefined}
+                  onDragOver={reorderMode ? (e) => handleDragOver(e, root.id) : undefined}
+                  onDrop={reorderMode ? () => handleDrop(root.id) : undefined}
+                  onDragEnd={reorderMode ? handleDragEnd : undefined}
                   onPointerDown={(e) => startLongPress(root.id, e)}
                   onPointerMove={checkLongPressMove}
                   onPointerUp={cancelLongPress}
                   onPointerCancel={cancelLongPress}
                   onPointerLeave={cancelLongPress}
-                  onClick={selectionMode ? () => handleToggleSelect(root.id) : undefined}
-                  className={`group flex items-center gap-1 mx-1 my-0.5 px-2 py-1.5 rounded-md transition-colors select-none ${!selectionMode && isDragging ? "opacity-40" : ""
-                    } ${!selectionMode && isDragOver ? "ring-1 ring-violet-400 dark:ring-violet-500" : ""
-                    } ${selectionMode
-                      ? isSelected
-                        ? "bg-violet-50 dark:bg-violet-900/30"
-                        : "hover:bg-gray-100 dark:hover:bg-gray-800"
-                      : isActive
-                        ? "bg-violet-50 dark:bg-violet-900/30"
-                        : "hover:bg-gray-100 dark:hover:bg-gray-800"
-                    } ${selectionMode ? "cursor-pointer" : ""}`}
+                  onClick={
+                    selectionMode
+                      ? () => setSelectedIds((prev) => { const n = new Set(prev); n.has(root.id) ? n.delete(root.id) : n.add(root.id); return n; })
+                      : reorderMode
+                      ? undefined
+                      : () => handleSelectRoot(root.id)
+                  }
+                  className={[
+                    "group relative flex flex-col rounded-2xl border bg-white dark:bg-gray-900 select-none",
+                    "transition-all duration-150",
+                    reorderMode ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
+                    isDragging ? "opacity-40 scale-95" : "",
+                    isDragOver ? "ring-2 ring-violet-400 dark:ring-violet-500 scale-[1.02]" : "",
+                    selectionMode && isSelected
+                      ? "border-violet-400 dark:border-violet-500 ring-2 ring-violet-400/30 dark:ring-violet-500/30"
+                      : !isDragOver ? "border-gray-200/80 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)]" : "",
+                  ].filter(Boolean).join(" ")}
                 >
-                  {selectionMode ? (
-                    /* Checkbox */
-                    <span className={`shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${isSelected ? "bg-violet-500 border-violet-500" : "border-gray-300 dark:border-gray-600"}`}>
-                      {isSelected && (
-                        <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </span>
-                  ) : (
-                    /* Drag handle */
-                    <span className="shrink-0 flex items-center cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" />
-                      </svg>
-                    </span>
+                  {/* Color strip */}
+                  {labelHex && (
+                    <div className="h-1 rounded-t-2xl w-full" style={{ background: labelHex }} />
                   )}
-                  {/* Color dot */}
-                  <span
-                    className="shrink-0 w-2 h-2 rounded-full transition-colors"
-                    style={{ background: colorsMap[root.id] ? LABEL_COLORS.find(c => c.id === colorsMap[root.id])?.hex ?? "transparent" : "transparent" }}
-                  />
-                  <button
-                    onClick={selectionMode ? undefined : () => handleSelectRoot(root.id)}
-                    className={`flex-1 min-w-0 text-left ${(selectionMode ? isSelected : isActive) ? "text-violet-700 dark:text-violet-300" : "text-gray-700 dark:text-gray-300"
-                      }`}
-                  >
-                    <div className={`text-sm truncate ${(selectionMode ? isSelected : isActive) ? "font-medium" : ""}`}>
-                      {locked
-                        ? <span className="italic text-amber-500 dark:text-amber-400">Locked</span>
-                        : firstLine(root.content) || <span className="italic text-gray-400 dark:text-gray-600">Untitled</span>
-                      }
+
+                  <div className="flex flex-col flex-1 p-4">
+                    {/* Title row */}
+                    <div className="flex items-start gap-2 mb-2">
+                      {/* Checkbox (selection mode) or drag handle (reorder mode) */}
+                      {selectionMode && (
+                        <span className={`shrink-0 mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${isSelected ? "bg-violet-500 border-violet-500" : "border-gray-300 dark:border-gray-600"}`}>
+                          {isSelected && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                        </span>
+                      )}
+                      {reorderMode && (
+                        <span className="shrink-0 mt-1 text-gray-300 dark:text-gray-700">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" /></svg>
+                        </span>
+                      )}
+                      <h3 className="flex-1 font-semibold text-[15px] text-gray-900 dark:text-gray-50 leading-snug line-clamp-2">
+                        {firstLine(root.content) || <span className="italic text-gray-400 dark:text-gray-600 font-normal">Untitled</span>}
+                      </h3>
+                      {protected_ && (
+                        <span className="shrink-0 mt-0.5" title="Protected by vault">
+                          <svg className="w-3.5 h-3.5 text-amber-400 dark:text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                        </span>
+                      )}
                     </div>
-                  </button>
-                  {/* Lock button — hidden in selection mode */}
-                  {!selectionMode && (
-                    <button
-                      onClick={(e) => handleLockClick(e, root.id)}
-                      title={hasPin ? (locked ? "Unlock thought" : "Lock thought") : "Set PIN lock"}
-                      className={`shrink-0 w-6 h-6 flex items-center justify-center rounded transition-colors ${locked
-                        ? "opacity-100 text-amber-500 hover:text-amber-600"
-                        : "md:opacity-0 md:group-hover:opacity-100 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-                        }`}
-                    >
-                      {locked ? (
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                      ) : (
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                        </svg>
+
+                    {/* Preview */}
+                    {preview && (
+                      <p className="text-sm text-gray-400 dark:text-gray-500 leading-relaxed line-clamp-2 mb-3 flex-1">
+                        {preview}
+                      </p>
+                    )}
+
+                    {/* Footer */}
+                    <div className="flex items-center gap-2 mt-auto pt-3 border-t border-gray-100 dark:border-gray-800">
+                      {nodeCount > 0 && (
+                        <span className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10M4 18h7" /></svg>
+                          {nodeCount}
+                        </span>
                       )}
-                    </button>
-                  )}
+                      <span className="text-xs text-gray-300 dark:text-gray-700">·</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">{dateStr}</span>
+
+                      {/* Quick actions — only when no special mode active */}
+                      {!selectionMode && !reorderMode && (
+                        <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => handleCopyShare(root.id, e)}
+                            title="Copy share link"
+                            className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors ${copiedId === root.id ? "text-green-500" : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
+                          >
+                            {copiedId === root.id
+                              ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                              : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                            }
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const w = 200;
+                              const left = Math.max(4, Math.min(rect.left - 80, window.innerWidth - w - 4));
+                              setColorPickerPos({ top: rect.bottom + 6, left });
+                              setColorPickerRootId(colorPickerRootId === root.id ? null : root.id);
+                            }}
+                            title="Label color"
+                            className="w-6 h-6 flex items-center justify-center rounded-md transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+                            style={{ color: labelHex }}
+                          >
+                            <svg className={`w-3 h-3 ${labelHex ? "" : "text-gray-400 dark:text-gray-500"}`} fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.1 0 2-.9 2-2 0-.53-.2-1.01-.52-1.38-.31-.36-.49-.84-.49-1.32 0-1.1.9-2 2-2h2.36c3.09 0 5.65-2.56 5.65-5.65C22.99 6.01 17.99 2 12 2z" /></svg>
+                          </button>
+                          {/* Vault protection toggle */}
+                          <button
+                            onClick={(e) => handleToggleProtected(e, root.id)}
+                            title={protected_ ? "Remove from vault" : "Add to vault"}
+                            className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors ${protected_ ? "text-amber-500 hover:text-amber-600" : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
+                          >
+                            {protected_
+                              ? <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                              : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
+                            }
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteRoot(root.id); }}
+                            title="Delete"
+                            className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               );
-            })
-          )}
+            })}
+          </div>
+        )}
+      </main>
+
+      {/* ── Toast ── */}
+      {toast && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 bg-gray-900/90 dark:bg-white/90 text-white dark:text-gray-900 text-sm font-medium rounded-full shadow-xl anim-fade-up pointer-events-none">
+          <svg className="w-3.5 h-3.5 text-green-400 dark:text-green-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          {toast}
         </div>
+      )}
 
-        {/* Sidebar footer: import */}
-        <div className="shrink-0 border-t border-gray-100 dark:border-gray-800 px-3 py-2 flex flex-col gap-0.5">
-          <button
-            onClick={() => { seedThoughts(SEED_THOUGHTS); toast("Sample thoughts loaded"); }}
-            className="w-full flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 transition-colors py-1"
-          >
-            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-            </svg>
-            Load sample data
-          </button>
-          <button
-            onClick={() => importInputRef.current?.click()}
-            className="w-full flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors py-1"
-          >
-            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-            </svg>
-            Import
-          </button>
-          <button
-            onClick={() => setShowTrash(true)}
-            className="w-full flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors py-1"
-          >
-            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            Trash
-            {trashEntries.length > 0 && (
-              <span className="ml-auto text-[10px] bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full px-1.5 py-0.5 leading-none">
-                {trashEntries.length}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Resize handle — desktop only */}
-        <div
-          className="hidden md:block absolute top-0 right-0 bottom-0 w-1 cursor-col-resize hover:bg-violet-400 dark:hover:bg-violet-600 transition-colors"
-          onMouseDown={handleResizeMouseDown}
-        />
-      </aside>
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
-
-        {/* Topbar — mobile only */}
-        <header className="md:hidden shrink-0 flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
-          <button
-            onClick={() => setSidebarOpen((o) => !o)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <span className="text-sm font-semibold text-gray-800 dark:text-gray-100 flex-1 truncate">
-            {selectedRootId && nodes[selectedRootId]
-              ? isLocked(selectedRootId) ? "Locked" : firstLine(nodes[selectedRootId].content) || "Untitled"
-              : "Thought Tree"}
-          </span>
-          <button
-            onClick={() => setShowSearch(true)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </button>
-          <button
-            onClick={handleCreateRoot}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
-        </header>
-
-        {/* Toolbar */}
-        {selectedRootId && nodes[selectedRootId] && !isLocked(selectedRootId) && (
-          nodeSelectionMode ? (
-            <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-1 gap-2">
-              <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                {selectedNodeIds.size} node{selectedNodeIds.size !== 1 ? "s" : ""} selected
-              </span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setShowDeleteNodesConfirm(true)}
-                  disabled={selectedNodeIds.size === 0}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${selectedNodeIds.size > 0 ? "bg-red-500 hover:bg-red-600 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-300 dark:text-gray-600 cursor-not-allowed"}`}
-                >
-                  Delete ({selectedNodeIds.size})
-                </button>
-                <button
-                  onClick={exitNodeSelectionMode}
-                  className="px-3 py-1.5 text-xs font-medium rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-          <div className="shrink-0 flex items-center justify-between px-4 pt-3 pb-1 gap-2 flex-wrap">
-            {/* Left: view toggle + collapse/expand */}
-            <div className="flex items-center gap-1">
-              <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
-                <button
-                  onClick={() => setViewMode("tree")}
-                  title="Tree view"
-                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${viewMode === "tree"
-                    ? "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                    }`}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10M4 18h7" />
-                  </svg>
-                  Tree
-                </button>
-                <button
-                  onClick={() => { setViewMode("map"); exitNodeSelectionMode(); }}
-                  title="Map view"
-                  className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${viewMode === "map"
-                    ? "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                    }`}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  Map
-                </button>
-              </div>
-              {viewMode === "tree" && (
-                <>
-                  <button
-                    onClick={() => setCollapseSignal((s) => s + 1)}
-                    title="Collapse all"
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setExpandSignal((s) => s + 1)}
-                    title="Expand all"
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => anyHidden ? setRevealSignal((s) => s + 1) : setHideSignal((s) => s + 1)}
-                    title={anyHidden ? "Show all content" : "Hide all content"}
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    {anyHidden ? (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                    ) : (
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setDragMode((s) => !s)}
-                    title={dragMode ? "Disable reorder" : "Enable reorder"}
-                    className={`sm:hidden w-7 h-7 flex items-center justify-center rounded-md transition-colors ${dragMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30" : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
-                  >
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" /></svg>
-                  </button>
-                  <button
-                    onClick={() => setNodeSelectionMode((s) => !s)}
-                    title="Select nodes to delete"
-                    className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors ${nodeSelectionMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30" : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}`}
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                    </svg>
-                  </button>
-                </>
-              )}
-              <button
-                onClick={undo}
-                disabled={!canUndo}
-                title="Undo (Ctrl+Z)"
-                className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors ${canUndo ? "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" : "text-gray-200 dark:text-gray-700 cursor-not-allowed"}`}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                </svg>
-              </button>
-              <button
-                onClick={redo}
-                disabled={!canRedo}
-                title="Redo (Ctrl+Shift+Z)"
-                className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors ${canRedo ? "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" : "text-gray-200 dark:text-gray-700 cursor-not-allowed"}`}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Right: action buttons */}
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => { const newId = handleCreateChild(selectedRootId); setInitialEditId(newId); }}
-                title="Add node"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
-              <button
-                onClick={() => handleDuplicateRoot(selectedRootId)}
-                title="Duplicate thought"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </button>
-              <button
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const w = 252;
-                  const left = Math.max(4, Math.min(rect.left - 80, window.innerWidth - w - 4));
-                  setColorPickerPos({ top: rect.bottom + 6, left });
-                  setColorPickerRootId(colorPickerRootId === selectedRootId ? null : selectedRootId);
-                }}
-                title="Label color"
-                className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-                style={{ color: colorsMap[selectedRootId] ? LABEL_COLORS.find(c => c.id === colorsMap[selectedRootId])?.hex : undefined }}
-              >
-                <svg className={`w-4 h-4 ${colorsMap[selectedRootId] ? "" : "text-gray-400 dark:text-gray-500"}`} fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.1 0 2-.9 2-2 0-.53-.2-1.01-.52-1.38-.31-.36-.49-.84-.49-1.32 0-1.1.9-2 2-2h2.36c3.09 0 5.65-2.56 5.65-5.65C22.99 6.01 17.99 2 12 2zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5S18.33 11 17.5 11z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => handleCopyShare(selectedRootId)}
-                title="Copy share link"
-                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${copiedId === selectedRootId
-                  ? "text-green-500"
-                  : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-                  }`}
-              >
-                {copiedId === selectedRootId ? (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                  </svg>
-                )}
-              </button>
-              <button
-                onClick={handleExport}
-                title="Export to file"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-              </button>
-              {pinsMap[selectedRootId] && (
-                <>
-                  <button
-                    onClick={() => { setPinError(""); setPinDialog({ id: selectedRootId, mode: "change-verify" }); }}
-                    title="Change PIN"
-                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => handleRemovePin(selectedRootId)}
-                    title="Remove PIN"
-                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-amber-500 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3l18 18" />
-                    </svg>
-                  </button>
-                </>
-              )}
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                title="Delete thought"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
-          </div>
-          )
-        )}
-
-        {shareToast && (
-          <div className="mx-4 mt-2 px-4 py-2.5 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 text-sm rounded-xl flex items-center gap-2 shrink-0">
-            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            {shareToast}
-          </div>
-        )}
-
-        {/* Tree / Map / locked / empty state */}
-        {selectedRootId && nodes[selectedRootId] ? (
-          isLocked(selectedRootId) ? (
-            <div className="flex-1 flex items-center justify-center text-center px-6">
-              <div>
-                <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
-                <h2 className="text-base font-semibold text-gray-700 dark:text-gray-200 mb-1">Thought locked</h2>
-                <p className="text-sm text-gray-400 dark:text-gray-500 mb-5">Enter your PIN to view this thought</p>
-                <button
-                  onClick={() => { setPinError(""); setPinDialog({ id: selectedRootId, mode: "unlock" }); }}
-                  className="px-5 py-2.5 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-xl transition-colors"
-                >
-                  Enter PIN
-                </button>
-              </div>
-            </div>
-          ) : viewMode === "map" ? (
-            <MapView
-              key={selectedRootId}
-              isDark={isDark}
-              nodesMap={Object.fromEntries(
-                Object.entries(nodes).filter(([, n]) => {
-                  let cur: typeof n | undefined = n;
-                  while (cur) {
-                    if (cur.id === selectedRootId) return true;
-                    cur = cur.parentId ? nodes[cur.parentId] : undefined;
-                  }
-                  return false;
-                })
-              )}
-              onUpdate={handleUpdateNode}
-              onCreateChild={handleCreateChild}
-              onDelete={handleDeleteNode}
-            />
-          ) : (
-            <NoteTree
-              key={selectedRootId}
-              rootId={selectedRootId}
-              nodes={nodes}
-              initialEditId={initialEditId}
-              collapseSignal={collapseSignal}
-              expandSignal={expandSignal}
-              hideSignal={hideSignal}
-              revealSignal={revealSignal}
-              onAnyHiddenChange={setAnyHidden}
-              scrollToId={scrollToId}
-              onUpdate={handleUpdateNode}
-              onCreateChild={handleCreateChild}
-              onDelete={handleDeleteNode}
-              onDeleteKeepChildren={deleteNodeOnly}
-              dragMode={dragMode}
-              onMove={(nodeId) => setMovingNodeId(nodeId)}
-              onReparent={(nodeId, newParentId) => moveNode(nodeId, newParentId)}
-              nodeSelectionMode={nodeSelectionMode}
-              selectedNodeIds={selectedNodeIds}
-              onNodeToggleSelect={handleNodeToggleSelect}
-            />
-          )
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-center px-6">
-            <div>
-              <div className="w-16 h-16 rounded-2xl bg-violet-50 dark:bg-violet-900/20 flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-violet-400 dark:text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <h2 className="text-base font-semibold text-gray-700 dark:text-gray-200 mb-1">
-                {roots.length === 0 ? "Start your first thought" : "Select a thought"}
-              </h2>
-              <p className="text-sm text-gray-400 dark:text-gray-500 mb-5">
-                {roots.length === 0
-                  ? "Hit + to create a new thought tree"
-                  : "Pick one from the sidebar"}
-              </p>
-              {roots.length === 0 && (
-                <button
-                  onClick={handleCreateRoot}
-                  className="px-5 py-2.5 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 rounded-xl transition-colors"
-                >
-                  New thought
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Delete thought confirm */}
-      {showDeleteConfirm && selectedRootId && (
+      {/* ── Confirm dialogs ── */}
+      {showDeleteConfirm && (
         <ConfirmDialog
-          message="Delete this entire thought and all its nodes?"
-          onConfirm={() => { setShowDeleteConfirm(false); handleDeleteNode(selectedRootId); }}
+          message={`Delete ${selectedIds.size} thought${selectedIds.size !== 1 ? "s" : ""}? They will move to Trash.`}
+          onConfirm={() => { setShowDeleteConfirm(false); handleDeleteSelected(); }}
           onCancel={() => setShowDeleteConfirm(false)}
         />
       )}
-
-      {showDeleteNodesConfirm && (
+      {showExportConfirm && (
         <ConfirmDialog
-          message={`Permanently delete ${selectedNodeIds.size} node${selectedNodeIds.size !== 1 ? "s" : ""} and their children?`}
-          onConfirm={() => { setShowDeleteNodesConfirm(false); handleDeleteSelectedNodes(); }}
-          onCancel={() => setShowDeleteNodesConfirm(false)}
+          message={`Export ${selectedIds.size} thought${selectedIds.size !== 1 ? "s" : ""} as a JSON backup file?`}
+          onConfirm={() => { setShowExportConfirm(false); handleExportSelected(); }}
+          onCancel={() => setShowExportConfirm(false)}
         />
       )}
 
-      {/* Search dialog */}
       {showSearch && (
         <SearchDialog
           nodes={nodes}
-          lockedRootIds={new Set(roots.filter((r) => isLocked(r.id)).map((r) => r.id))}
+          lockedRootIds={isVaultLocked ? new Set(Array.from(lockedIds)) : new Set()}
           onSelect={handleSearchSelect}
           onClose={() => setShowSearch(false)}
         />
       )}
 
-      {/* PIN dialog */}
-      {pinDialog && (
+      {vaultDialog && (
         <PinDialog
-          key={pinDialog.mode}
-          mode={pinDialog.mode}
-          externalError={pinError || undefined}
-          onConfirm={handlePinConfirm}
-          onCancel={() => { setPinDialog(null); setPinError(""); }}
-          onChangePinRequest={pinDialog.mode === "unlock" ? () => {
-            setPinError("");
-            setPinDialog({ id: pinDialog.id, mode: "change-verify" });
-          } : undefined}
+          key={vaultDialog}
+          mode={vaultDialog}
+          externalError={vaultError || undefined}
+          onConfirm={handleVaultPinConfirm}
+          onCancel={() => { setVaultDialog(null); setVaultError(""); }}
+          onChangePinRequest={vaultDialog === "unlock" ? () => { setVaultError(""); setVaultDialog("change-verify"); } : undefined}
         />
       )}
 
-      {/* Color picker popover */}
       {colorPickerRootId && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setColorPickerRootId(null)} />
           <div
-            className="fixed z-50 flex items-center gap-1.5 p-2 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 flex-wrap"
+            className="fixed z-50 flex items-center gap-2 p-2.5 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex-wrap anim-pop-in"
             style={{ top: colorPickerPos.top, left: colorPickerPos.left, maxWidth: "calc(100vw - 8px)" }}
           >
             {LABEL_COLORS.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => handleColorChange(colorPickerRootId, c.id)}
-                className="w-5 h-5 rounded-full transition-transform hover:scale-110 shrink-0"
-                style={{
-                  background: c.hex,
-                  outline: colorsMap[colorPickerRootId] === c.id ? `2px solid ${c.hex}` : "none",
-                  outlineOffset: "2px",
-                }}
+              <button key={c.id} onClick={() => handleColorChange(colorPickerRootId, c.id)}
+                className="w-6 h-6 rounded-full transition-transform hover:scale-110 shrink-0 shadow-sm"
+                style={{ background: c.hex, outline: colorsMap[colorPickerRootId] === c.id ? `2px solid ${c.hex}` : "none", outlineOffset: "2px" }}
               />
             ))}
-            <button
-              onClick={() => handleColorChange(colorPickerRootId, null)}
-              className="w-5 h-5 rounded-full border-2 border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-400 hover:border-gray-400 transition-colors shrink-0"
-              title="Remove color"
-            >
-              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+            <button onClick={() => handleColorChange(colorPickerRootId, null)}
+              className="w-6 h-6 rounded-full border-2 border-gray-200 dark:border-gray-600 flex items-center justify-center text-gray-400 hover:border-gray-400 transition-colors shrink-0">
+              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
         </>
       )}
 
-      {/* Move dialog */}
-      {movingNodeId && (
-        <MoveDialog
-          nodeId={movingNodeId}
-          nodes={nodes}
-          onMove={handleMoveComplete}
-          onClose={() => setMovingNodeId(null)}
-        />
-      )}
-
-      {/* Shortcuts dialog */}
-      {showShortcuts && <ShortcutsDialog onClose={() => setShowShortcuts(false)} />}
-
-      {showTrash && (
-        <TrashDialog
-          entries={trashEntries}
-          onRestore={handleRestore}
-          onDeletePermanently={handlePermanentDelete}
-          onClearAll={handleClearTrash}
-          onClose={() => setShowTrash(false)}
-        />
-      )}
-
-      {/* Mobile sidebar toggle — draggable floating button */}
-      <button
-        ref={fabRef}
-        onClick={handleFabClick}
-        onPointerDown={handleFabPointerDown}
-        onPointerMove={handleFabPointerMove}
-        onPointerUp={handleFabPointerUp}
-        onPointerCancel={() => { fabDragRef.current = null; }}
-        className={`md:hidden fixed z-40 flex items-center gap-2 pl-3 pr-4 h-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-full shadow-lg text-gray-700 dark:text-gray-200 touch-none select-none transition-opacity ${sidebarOpen ? "opacity-0 pointer-events-none" : "opacity-100"}`}
-        style={fabPos ? { left: fabPos.x, top: fabPos.y } : { bottom: 20, left: 16 }}
-      >
-        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
-
-      {/* Theme picker popover */}
+      {/* Theme picker */}
       {showThemePicker && createPortal(
         <>
           <div className="fixed inset-0 z-200" onClick={() => setShowThemePicker(false)} />
           <div
-            className="fixed z-201 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-3"
+            className="fixed z-201 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-3 anim-pop-in"
             style={{ top: themePickerPos.top, left: themePickerPos.left, width: 244 }}
           >
-            {/* Mode toggle — top */}
             <div className="flex gap-1.5 mb-3">
-              <button
-                onClick={() => handleDarkToggle(false)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-colors ${!isDark ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100" : "text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/60"}`}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="4" strokeWidth="2" />
-                  <path strokeLinecap="round" strokeWidth="2" d="M12 2v2m0 16v2M2 12h2m16 0h2m-3.5-7.5-1.5 1.5m-9 9-1.5 1.5m0-12 1.5 1.5m9 9 1.5 1.5" />
-                </svg>
+              <button onClick={() => { setIsDark(false); applyColor(colorId, false); }}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all ${!isDark ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm" : "text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/60"}`}>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" strokeWidth="2" /><path strokeLinecap="round" strokeWidth="2" d="M12 2v2m0 16v2M2 12h2m16 0h2m-3.5-7.5-1.5 1.5m-9 9-1.5 1.5m0-12 1.5 1.5m9 9 1.5 1.5" /></svg>
                 Light
               </button>
-              <button
-                onClick={() => handleDarkToggle(true)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-colors ${isDark ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100" : "text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/60"}`}
-              >
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                </svg>
+              <button onClick={() => { setIsDark(true); applyColor(colorId, true); }}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all ${isDark ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm" : "text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/60"}`}>
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
                 Dark
               </button>
             </div>
-            {/* Color grid — bottom */}
             <div className="border-t border-gray-100 dark:border-gray-800 pt-3">
               <div className="grid grid-cols-4 gap-1">
-                {ACCENT_COLORS.map(c => {
+                {ACCENT_COLORS.map((c) => {
                   const active = colorId === c.id;
                   return (
-                    <button
-                      key={c.id}
-                      title={c.name}
-                      onClick={() => handleAccentChange(c.id)}
-                      className={`flex flex-col items-center gap-1.5 py-2 rounded-xl transition-colors ${active ? "bg-gray-100 dark:bg-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-800/60"}`}
-                    >
-                      <span
-                        className="w-6 h-6 rounded-full flex items-center justify-center"
-                        style={{
-                          background: c.hex,
-                          outline: active ? `2px solid ${c.hex}` : "none",
-                          outlineOffset: "2px",
-                        }}
-                      >
-                        {active && (
-                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
+                    <button key={c.id} title={c.name} onClick={() => { setColorId(c.id); applyColor(c.id, isDark); }}
+                      className={`flex flex-col items-center gap-1.5 py-2 rounded-xl transition-all ${active ? "bg-gray-100 dark:bg-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-800/60"}`}>
+                      <span className="w-6 h-6 rounded-full flex items-center justify-center shadow-sm" style={{ background: c.hex, outline: active ? `2px solid ${c.hex}` : "none", outlineOffset: "2px" }}>
+                        {active && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                       </span>
-                      <span className={`text-[9px] leading-none ${active ? "font-semibold text-gray-800 dark:text-gray-100" : "font-medium text-gray-400 dark:text-gray-500"}`}>
-                        {c.name}
-                      </span>
+                      <span className={`text-[9px] leading-none ${active ? "font-semibold text-gray-800 dark:text-gray-100" : "font-medium text-gray-400 dark:text-gray-500"}`}>{c.name}</span>
                     </button>
                   );
                 })}
@@ -1599,14 +965,6 @@ export default function Home() {
         </>,
         document.body
       )}
-
-      {/* Auto-save badge */}
-      <div className={`fixed bottom-4 right-4 flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded-full shadow-lg transition-opacity duration-300 pointer-events-none ${showSaved ? "opacity-100" : "opacity-0"}`}>
-        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-        </svg>
-        Saved
-      </div>
     </div>
   );
 }

@@ -117,6 +117,7 @@ interface NodeSelectCtx {
   toggle: (id: string) => void;
 }
 const NodeSelectContext = createContext<NodeSelectCtx>({ active: false, selected: new Set(), toggle: () => {} });
+const StickyOffsetContext = createContext<number>(0);
 
 interface DropTarget {
   parentId: string | null;
@@ -198,8 +199,9 @@ function NoteNode({
 
   const isDragging = drag.draggedId === node.id;
 
+  const stickyOffset = useContext(StickyOffsetContext);
   const rowStyle: React.CSSProperties = {};
-  if (hasChildren) { rowStyle.top = depth * 30; rowStyle.zIndex = Math.max(1, 10 - depth); }
+  if (hasChildren) { rowStyle.top = stickyOffset + depth * 30; rowStyle.zIndex = Math.max(1, 10 - depth); }
   if (nodeColor && !isHighlighted) {
     rowStyle.backgroundImage = `linear-gradient(${nodeColor.tint}, ${nodeColor.tint})`;
   }
@@ -311,7 +313,7 @@ function NoteNode({
         data-parent-id={node.parentId ?? "null"}
         className={`flex items-start group relative transition-colors ${isDragging ? "opacity-40" : ""
           } ${isHighlighted ? "rounded-lg ring-2 ring-yellow-400 dark:ring-yellow-500 bg-yellow-50 dark:bg-yellow-900/25" : ""
-          } ${hasChildren ? "sticky bg-white dark:bg-gray-950" : ""} ${nodeColor && !isHighlighted ? "rounded-md" : ""
+          } ${hasChildren ? "sticky bg-gray-50 dark:bg-[#0a0a0b]" : ""} ${nodeColor && !isHighlighted ? "rounded-md" : ""
           } ${selectable ? "cursor-pointer" : ""
           } ${selectable && isNodeSelected ? "bg-violet-50 dark:bg-violet-900/20 rounded-md" : ""}`}
         style={rowStyle}
@@ -324,21 +326,21 @@ function NoteNode({
         {/* Ancestor vertical lines */}
         {parentLines.map((show, i) => (
           <div key={i} className="shrink-0 relative self-stretch" style={{ width: COL }}>
-            {show && <div className="absolute w-px bg-gray-200 dark:bg-gray-700" style={{ left: LX, top: 0, bottom: 0 }} />}
+            {show && <div className="absolute w-px bg-gray-200/70 dark:bg-gray-700/50" style={{ left: LX, top: 0, bottom: 0 }} />}
           </div>
         ))}
 
         {/* Branch connector */}
         {depth > 0 && (
           <div className="shrink-0 relative self-stretch" style={{ width: COL }}>
-            <div className="absolute w-px bg-gray-200 dark:bg-gray-700" style={{ left: LX, top: 0, height: isLast ? MID : "100%" }} />
-            <div className="absolute h-px bg-gray-200 dark:bg-gray-700" style={{ left: LX, top: MID, right: 0 }} />
+            <div className="absolute w-px bg-gray-200/70 dark:bg-gray-700/50" style={{ left: LX, top: 0, height: isLast ? MID : "100%" }} />
+            <div className="absolute h-px bg-gray-200/70 dark:bg-gray-700/50" style={{ left: LX, top: MID, right: 0 }} />
           </div>
         )}
 
         {/* Expand / collapse toggle — or checkbox in selection mode */}
         {selectable ? (
-          <span className="shrink-0 w-3 h-7 flex items-center justify-center">
+          <span className="shrink-0 w-4 h-7 flex items-center justify-center">
             <span className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${isNodeSelected ? "bg-violet-500 border-violet-500" : "border-gray-300 dark:border-gray-600"}`}>
               {isNodeSelected && (
                 <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -350,12 +352,12 @@ function NoteNode({
         ) : (
           <button
             onClick={() => hasChildren && toggle(node.id)}
-            className={["shrink-0 flex items-center justify-center rounded w-3 h-7",
-              hasChildren ? "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer" : "cursor-default",
+            className={["shrink-0 flex items-center justify-center rounded-md w-4 h-7",
+              hasChildren ? "text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 cursor-pointer" : "cursor-default",
             ].join(" ")}
           >
             {hasChildren && (
-              <svg className={`w-3 h-3 transition-transform ${expanded ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`w-3 h-3 transition-transform duration-150 ${expanded ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
               </svg>
             )}
@@ -374,12 +376,12 @@ function NoteNode({
                 onBlur={() => onSave(node.id, draft)}
                 placeholder="Write your note…"
                 rows={2}
-                className="w-full px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-violet-300 dark:border-violet-600 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-violet-500 leading-relaxed overflow-hidden"
+                className="w-full px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-900 border border-violet-300 dark:border-violet-700 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/50 dark:focus:ring-violet-500/30 focus:border-violet-400 dark:focus:border-violet-600 leading-relaxed overflow-hidden transition-shadow"
               />
             </div>
           ) : (
             <button onClick={(e) => { if (selectable) { e.stopPropagation(); selectToggle(node.id); return; } if (!isHidden) onEdit(node.id); }}
-              className={`w-full text-left px-2 py-1 rounded-md text-sm leading-relaxed text-gray-800 dark:text-gray-200 transition-colors ${isHidden ? "cursor-default" : "hover:bg-gray-100 dark:hover:bg-gray-800"}`}>
+              className={`w-full text-left px-2 py-1 rounded-lg text-sm leading-relaxed text-gray-800 dark:text-gray-200 transition-colors ${isHidden ? "cursor-default" : "hover:bg-gray-100/80 dark:hover:bg-gray-800/60"}`}>
               {isHidden
                 ? <span className="text-gray-400 dark:text-gray-600 select-none tracking-widest">••••••••••</span>
                 : node.content
@@ -510,18 +512,18 @@ function NoteNode({
           document.body
         )}
         {isEditing && !isHidden && createPortal(
-          <div className="fixed top-0 left-0 right-0 z-9999 flex items-center gap-0.5 px-2 py-1.5 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-md">
-            <button type="button" onPointerDown={(e) => { e.preventDefault(); wrapSelection("**"); }} title="Bold" className="px-2 py-1 text-sm font-bold rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 active:bg-gray-200 dark:active:bg-gray-700">B</button>
-            <button type="button" onPointerDown={(e) => { e.preventDefault(); wrapSelection("*"); }} title="Italic" className="px-2 py-1 text-sm italic rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 active:bg-gray-200 dark:active:bg-gray-700">I</button>
-            <button type="button" onPointerDown={(e) => { e.preventDefault(); wrapSelection("`"); }} title="Code" className="px-2 py-1 text-sm font-mono rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 active:bg-gray-200 dark:active:bg-gray-700">{ }</button>
+          <div className="fixed top-0 left-0 right-0 z-9999 flex items-center gap-0.5 px-3 py-1.5 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200/80 dark:border-gray-700/80 shadow-sm">
+            <button type="button" onPointerDown={(e) => { e.preventDefault(); wrapSelection("**"); }} title="Bold" className="px-2.5 py-1.5 text-sm font-bold rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 active:bg-gray-200 dark:active:bg-gray-700 transition-colors">B</button>
+            <button type="button" onPointerDown={(e) => { e.preventDefault(); wrapSelection("*"); }} title="Italic" className="px-2.5 py-1.5 text-sm italic rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 active:bg-gray-200 dark:active:bg-gray-700 transition-colors">I</button>
+            <button type="button" onPointerDown={(e) => { e.preventDefault(); wrapSelection("`"); }} title="Code" className="px-2.5 py-1.5 text-sm font-mono rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 active:bg-gray-200 dark:active:bg-gray-700 transition-colors">{ }</button>
             <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1 shrink-0" />
-            <button type="button" onPointerDown={(e) => { e.preventDefault(); prefixLine("- [ ] "); }} title="Checklist" className="px-2 py-1 text-sm rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 active:bg-gray-200 dark:active:bg-gray-700 flex items-center">
+            <button type="button" onPointerDown={(e) => { e.preventDefault(); prefixLine("- [ ] "); }} title="Checklist" className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 active:bg-gray-200 dark:active:bg-gray-700 transition-colors flex items-center">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
             </button>
-            <button type="button" onPointerDown={(e) => { e.preventDefault(); prefixLine("- "); }} title="Bullet list" className="px-2 py-1 text-sm rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 active:bg-gray-200 dark:active:bg-gray-700 flex items-center">
+            <button type="button" onPointerDown={(e) => { e.preventDefault(); prefixLine("- "); }} title="Bullet list" className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 active:bg-gray-200 dark:active:bg-gray-700 transition-colors flex items-center">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
             </button>
-            <button type="button" onPointerDown={(e) => { e.preventDefault(); prefixLine("> "); }} title="Quote" className="px-2 py-1 text-sm rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200 active:bg-gray-200 dark:active:bg-gray-700 flex items-center">
+            <button type="button" onPointerDown={(e) => { e.preventDefault(); prefixLine("> "); }} title="Quote" className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 active:bg-gray-200 dark:active:bg-gray-700 transition-colors flex items-center">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10.5h.01M12 10.5h.01M16 10.5h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-4 4v-4z" /></svg>
             </button>
           </div>,
@@ -610,6 +612,7 @@ interface NoteTreeProps {
   expandSignal: number;
   hideSignal: number;
   revealSignal: number;
+  stickyOffset?: number;
   scrollToId?: string | null;
   onUpdate: (id: string, content: string) => void;
   onCreateChild: (parentId: string) => string;
@@ -624,7 +627,7 @@ interface NoteTreeProps {
   onNodeToggleSelect?: (id: string) => void;
 }
 
-export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandSignal, hideSignal, revealSignal, scrollToId, onUpdate, onCreateChild, onDelete, onDeleteKeepChildren, onMove, onReparent, onAnyHiddenChange, dragMode = false, nodeSelectionMode = false, selectedNodeIds, onNodeToggleSelect }: NoteTreeProps) {
+export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandSignal, hideSignal, revealSignal, scrollToId, stickyOffset = 0, onUpdate, onCreateChild, onDelete, onDeleteKeepChildren, onMove, onReparent, onAnyHiddenChange, dragMode = false, nodeSelectionMode = false, selectedNodeIds, onNodeToggleSelect }: NoteTreeProps) {
   const [editingId, setEditingId] = useState<string | null>(initialEditId);
   const [childOrders, setChildOrders] = useState<Record<string, string[]>>({});
   const [nodeColors, setNodeColors] = useState<Record<string, string>>({});
@@ -860,17 +863,18 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
   const containerRect = drag.drop ? containerRef.current?.getBoundingClientRect() : null;
 
   return (
+    <StickyOffsetContext.Provider value={stickyOffset}>
     <HideContext.Provider value={hideCtx}>
       <ExpandContext.Provider value={expandCtx}>
       <NodeSelectContext.Provider value={nodeSelectCtx}>
         <div
           ref={containerRef}
-          className="h-full overflow-y-auto"
+          className="w-full"
           onDragOver={handleContainerDragOver}
           onDrop={handleContainerDrop}
           onDragLeave={handleContainerDragLeave}
         >
-          <div className="pl-2 pr-5 py-4 sm:pl-3 sm:pr-8 sm:py-6 max-w-2xl mb-120">
+          <div className="pl-2 pr-5 py-5 sm:pl-4 sm:pr-10 sm:py-6 max-w-2xl mb-120">
             <NoteNode node={root} nodes={nodes} depth={0} isLast={true} parentLines={[]}
               editingId={editingId} highlightId={highlightId} childOrders={childOrders} nodeColors={nodeColors} drag={drag} dragMode={dragMode}
               onEdit={setEditingId} onSave={handleSave} onAutoSave={handleAutoSave} onCancel={handleCancel} onAddChild={handleAddChild} onDelete={onDelete} onDeleteKeepChildren={onDeleteKeepChildren} onMove={onMove} onNodeColorChange={handleNodeColorChange}
@@ -884,13 +888,14 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
             className="fixed pointer-events-none z-9999 flex items-center gap-0"
             style={{ top: drag.drop.y - 1, left: containerRect.left + (drag.drop.depth + 1) * COL, right: containerRect.right > 0 ? window.innerWidth - containerRect.right + 8 : 8 }}
           >
-            <div className="w-2 h-2 rounded-full bg-violet-500 shrink-0 -ml-1" />
-            <div className="flex-1 h-0.5 bg-violet-500" />
+            <div className="w-2 h-2 rounded-full bg-violet-500 shrink-0 -ml-1 shadow-sm shadow-violet-400/50" />
+            <div className="flex-1 h-0.5 bg-violet-500 shadow-sm shadow-violet-400/30" />
           </div>,
           document.body
         )}
       </NodeSelectContext.Provider>
       </ExpandContext.Provider>
     </HideContext.Provider>
+    </StickyOffsetContext.Provider>
   );
 }

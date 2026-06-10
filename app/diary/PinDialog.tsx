@@ -9,10 +9,10 @@ interface PinDialogProps {
 }
 
 const HEADER: Record<PinDialogProps["mode"], { title: string; subtitle: string }> = {
-  "unlock":        { title: "Unlock thought",  subtitle: "Enter your PIN to view" },
-  "set":           { title: "Lock thought",     subtitle: "Set a 4-digit PIN" },
-  "change-verify": { title: "Change PIN",       subtitle: "Enter your current PIN" },
-  "change-new":    { title: "Change PIN",       subtitle: "Enter your new PIN" },
+  "unlock":        { title: "Unlock vault",     subtitle: "Enter your PIN to access protected thoughts" },
+  "set":           { title: "Set vault PIN",    subtitle: "Protect thoughts with a 4-digit PIN" },
+  "change-verify": { title: "Change vault PIN", subtitle: "Enter your current PIN" },
+  "change-new":    { title: "Change vault PIN", subtitle: "Enter your new PIN" },
 };
 
 export function PinDialog({ mode, externalError, onConfirm, onCancel, onChangePinRequest }: PinDialogProps) {

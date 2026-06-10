@@ -9,8 +9,10 @@
 @variant dark (&:where(.dark, .dark *));
 
 html, body {
-  @apply bg-white dark:bg-gray-950;
+  @apply bg-white dark:bg-[#0a0a0b];
 }
+
+/* ── Animations ──────────────────────────────────────────────────────── */
 
 @keyframes slide-from-right {
   from { opacity: 0; transform: translateX(40px); }
@@ -23,14 +25,37 @@ html, body {
 }
 
 @keyframes pop-in {
-  0%   { opacity: 0; transform: scale(0.92); }
-  60%  { transform: scale(1.03); }
+  0%   { opacity: 0; transform: scale(0.93); }
+  60%  { transform: scale(1.02); }
   100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .anim-slide-right { animation: slide-from-right 0.22s cubic-bezier(.22,.68,0,1.2) both; }
 .anim-slide-left  { animation: slide-from-left  0.22s cubic-bezier(.22,.68,0,1.2) both; }
 .anim-pop-in      { animation: pop-in           0.25s cubic-bezier(.22,.68,0,1.2) both; }
+.anim-fade-up     { animation: fade-up          0.22s cubic-bezier(.22,.68,0,1.2) both; }
+
+/* ── Scrollbar ───────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-200 dark:bg-gray-700 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-300 dark:bg-gray-600;
+}
+
+/* ── Text selection ──────────────────────────────────────────────────── */
+
+::selection {
+  @apply bg-violet-100 dark:bg-violet-900/50 text-violet-900 dark:text-violet-100;
+}
 
 /* ── Accent Colors ───────────────────────────────────────────────────────── */
 /* data-theme picks the accent color. Dark mode is a separate toggle (dark   */
