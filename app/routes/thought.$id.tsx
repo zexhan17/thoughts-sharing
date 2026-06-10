@@ -102,11 +102,11 @@ export default function ThoughtDetail() {
   })();
 
   useEffect(() => {
-    try { const r = localStorage.getItem(COLORS_KEY); if (r) setColorsMap(JSON.parse(r)); } catch {}
+    try { const r = localStorage.getItem(COLORS_KEY); if (r) setColorsMap(JSON.parse(r)); } catch { }
     const hash = localStorage.getItem(GLOBAL_LOCK_KEY);
     setGlobalLockHash(hash);
     if (!hash) { setGlobalUnlocked(true); } else { setGlobalUnlocked(sessionStorage.getItem("diary-vault-unlocked") === "1"); }
-    try { const r = localStorage.getItem(LOCKED_IDS_KEY); if (r) setLockedIds(new Set(JSON.parse(r))); } catch {}
+    try { const r = localStorage.getItem(LOCKED_IDS_KEY); if (r) setLockedIds(new Set(JSON.parse(r))); } catch { }
   }, []);
 
   useEffect(() => {
@@ -224,124 +224,127 @@ export default function ThoughtDetail() {
         {/* Color strip if labeled */}
         {labelHex && <div className="h-0.5 w-full" style={{ background: labelHex }} />}
 
-        <div className="max-w-5xl mx-auto px-3 sm:px-4 py-1.5 flex flex-wrap items-center gap-x-1 gap-y-1 min-h-12">
+        <div className="max-w-5xl mx-auto px-3 sm:px-4 py-1.5 flex items-center gap-x-1 min-h-12">
           {/* Back */}
           <button onClick={() => navigate("/")} title="Back to all thoughts"
             className="cursor-pointer flex items-center gap-1 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 transition-colors shrink-0 mr-1">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            <span className="text-xs">Back</span>
+
           </button>
 
-          {/* Spacer — pushes toolbar to the right on wide screens, wraps on small */}
-          <div className="flex-1" />
+          {/* Scrollable toolbar area */}
+          <div className="flex-1 min-w-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
 
-          {/* Toolbar — only when accessible */}
-          {!thoughtIsLocked && root && (
-            <div className="flex flex-wrap items-center gap-x-0.5 gap-y-0.5">
-              {/* Undo / Redo */}
-              <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)"
-                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${canUndo ? "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800" : "text-gray-200 dark:text-gray-700 cursor-not-allowed"}`}>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-              </button>
-              <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)"
-                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${canRedo ? "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800" : "text-gray-200 dark:text-gray-700 cursor-not-allowed"}`}>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" /></svg>
-              </button>
-
-              <span className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-0.5 self-center" />
-
-              {/* Collapse / Expand */}
-              <button onClick={() => setCollapseSignal((s) => s + 1)} title="Collapse all"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
-              </button>
-              <button onClick={() => setExpandSignal((s) => s + 1)} title="Expand all"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-              </button>
-              {anyHidden && (
-                <button onClick={() => setRevealSignal((s) => s + 1)} title="Reveal hidden"
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+            {/* Toolbar — only when accessible */}
+            {!thoughtIsLocked && root && (
+              <div className="flex items-center gap-x-0.5 justify-end">
+                {/* Undo / Redo */}
+                <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)"
+                  className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${canUndo ? "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800" : "text-gray-200 dark:text-gray-700 cursor-not-allowed"}`}>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
                 </button>
-              )}
-
-              <span className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-0.5 self-center" />
-
-              {/* Drag mode */}
-              <button onClick={() => { setDragMode((s) => !s); if (nodeSelectionMode) setNodeSelectionMode(false); }}
-                title="Drag to reorder"
-                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${dragMode ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400" : "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800"}`}>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
-              </button>
-
-              {/* Select mode — checkbox icon */}
-              <button onClick={() => { setNodeSelectionMode((s) => !s); if (dragMode) setDragMode(false); if (nodeSelectionMode) setSelectedNodeIds(new Set()); }}
-                title="Select nodes"
-                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${nodeSelectionMode ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400" : "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800"}`}>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" strokeWidth={2} /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12l3 3 5-5" /></svg>
-              </button>
-
-              {nodeSelectionMode && selectedNodeIds.size > 0 && (
-                <button onClick={() => setShowDeleteNodesConfirm(true)} title="Delete selected nodes"
-                  className="flex items-center gap-1 px-2 h-8 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  {selectedNodeIds.size}
+                <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)"
+                  className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${canRedo ? "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800" : "text-gray-200 dark:text-gray-700 cursor-not-allowed"}`}>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" /></svg>
                 </button>
-              )}
 
-              <span className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-0.5 self-center" />
+                <span className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-0.5 self-center" />
 
-              {/* Search */}
-              <button onClick={() => setShowSearch(true)} title="Search (Ctrl+K)"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              </button>
+                {/* Collapse / Expand */}
+                <button onClick={() => setCollapseSignal((s) => s + 1)} title="Collapse all"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                </button>
+                <button onClick={() => setExpandSignal((s) => s + 1)} title="Expand all"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {anyHidden && (
+                  <button onClick={() => setRevealSignal((s) => s + 1)} title="Reveal hidden"
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  </button>
+                )}
 
-              {/* Share */}
-              <button onClick={handleShare} title="Copy share link"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
-              </button>
+                <span className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-0.5 self-center" />
 
-              {/* Export */}
-              <button onClick={handleExport} title="Export as JSON"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-              </button>
+                {/* Drag mode */}
+                <button onClick={() => { setDragMode((s) => !s); if (nodeSelectionMode) setNodeSelectionMode(false); }}
+                  title="Drag to reorder"
+                  className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${dragMode ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400" : "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800"}`}>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                </button>
 
-              {/* Vault protection toggle */}
-              <button
-                onClick={handleToggleProtected}
-                title={isProtected ? "Remove from vault" : "Add to vault"}
-                className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${isProtected ? "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20" : "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800"}`}
-              >
-                {isProtected
-                  ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                  : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
-                }
-              </button>
+                {/* Select mode — checkbox icon */}
+                <button onClick={() => { setNodeSelectionMode((s) => !s); if (dragMode) setDragMode(false); if (nodeSelectionMode) setSelectedNodeIds(new Set()); }}
+                  title="Select nodes"
+                  className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${nodeSelectionMode ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400" : "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800"}`}>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" strokeWidth={2} /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12l3 3 5-5" /></svg>
+                </button>
 
-              {/* Auto-save indicator */}
-              {savedRecently && (
-                <span className="text-xs text-gray-400 dark:text-gray-600 anim-fade-up flex items-center gap-1 ml-1">
-                  <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                  Saved
-                </span>
-              )}
-            </div>
-          )}
+                {nodeSelectionMode && selectedNodeIds.size > 0 && (
+                  <button onClick={() => setShowDeleteNodesConfirm(true)} title="Delete selected nodes"
+                    className="flex items-center gap-1 px-2 h-8 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    {selectedNodeIds.size}
+                  </button>
+                )}
 
-          {/* Unlock button if vault locked */}
-          {thoughtIsLocked && (
-            <button onClick={() => { setVaultError(""); setVaultDialog("unlock"); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
-              Unlock vault
-            </button>
-          )}
+                <span className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-0.5 self-center" />
+
+                {/* Search */}
+                <button onClick={() => setShowSearch(true)} title="Search (Ctrl+K)"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                </button>
+
+                {/* Share */}
+                <button onClick={handleShare} title="Copy share link"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                </button>
+
+                {/* Export */}
+                <button onClick={handleExport} title="Export as JSON"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                </button>
+
+                {/* Vault protection toggle */}
+                <button
+                  onClick={handleToggleProtected}
+                  title={isProtected ? "Remove from vault" : "Add to vault"}
+                  className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${isProtected ? "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20" : "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800"}`}
+                >
+                  {isProtected
+                    ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
+                  }
+                </button>
+
+                {/* Auto-save indicator */}
+                {savedRecently && (
+                  <span className="text-xs text-gray-400 dark:text-gray-600 anim-fade-up flex items-center gap-1 ml-1">
+                    <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    Saved
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Unlock button if vault locked */}
+            {thoughtIsLocked && (
+              <div className="flex justify-end">
+                <button onClick={() => { setVaultError(""); setVaultDialog("unlock"); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
+                  Unlock vault
+                </button>
+              </div>
+            )}
+          </div>{/* end scrollable toolbar area */}
         </div>
       </header>
 
