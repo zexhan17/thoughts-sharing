@@ -238,26 +238,30 @@ export default function ThoughtDetail() {
         {/* Color strip if labeled */}
         {labelHex && <div className="h-0.5 w-full" style={{ background: labelHex }} />}
 
-        <div className="max-w-5xl mx-auto px-3 sm:px-4 py-1.5 flex items-center gap-x-1 min-h-12">
+        <div className="max-w-5xl mx-auto px-3 sm:px-4 py-1.5 flex items-center justify-between min-h-12">
           {/* Back */}
-          <button onClick={() => {
-            const hasChildren = Object.values(nodes).some(n => n.parentId === rootId);
-            if (root && root.content.trim() === "" && !hasChildren) deleteNode(rootId);
-            navigate("/");
-          }} title="Back to all thoughts"
-            className="cursor-pointer flex items-center gap-1 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 transition-colors shrink-0 mr-1">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+          <div className="flex items-center gap-x-2 shrink-0">
+            <button onClick={() => {
+              const hasChildren = Object.values(nodes).some(n => n.parentId === rootId);
+              if (root && root.content.trim() === "" && !hasChildren) deleteNode(rootId);
+              navigate("/");
+            }} title="Back to all thoughts"
+              className="cursor-pointer flex items-center gap-1 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
 
-          </button>
+            </button>
+
+            <span className="w-px h-4 bg-gray-200 dark:bg-gray-700" />
+          </div>
 
           {/* Scrollable toolbar area */}
-          <div className="flex-1 min-w-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="min-w-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
 
             {/* Toolbar — only when accessible */}
             {!thoughtIsLocked && root && (
-              <div className="flex items-center gap-x-0.5 min-w-max ml-auto">
+              <div className="flex items-center gap-x-0.5 min-w-max">
                 {/* Add child of root — desktop only; mobile uses floating button */}
                 <button
                   onClick={() => { const nid = createNode("", rootId); setAutoEditId(nid); }}

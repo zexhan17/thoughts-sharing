@@ -69,13 +69,15 @@ export default function TrashPage() {
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center gap-3">
           <button
             onClick={() => navigate("/")}
-            className="cursor-pointer flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 transition-colors"
+            className="cursor-pointer flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 transition-colors shrink-0"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             Back
           </button>
+
+          <span className="w-px h-4 bg-gray-200 dark:bg-gray-700 shrink-0" />
 
           <h1 className="flex-1 font-semibold text-[15px] text-gray-900 dark:text-gray-50">Trash</h1>
 
