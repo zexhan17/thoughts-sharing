@@ -108,8 +108,9 @@ function isEffectivelyHidden(nodeId: string, nodes: NodesMap, hiddenIds: Set<str
 interface HideCtx {
   hiddenIds: Set<string>;
   toggleHidden: (id: string) => void;
+  revealSubtree: (id: string) => void;
 }
-const HideContext = createContext<HideCtx>({ hiddenIds: new Set(), toggleHidden: () => { } });
+const HideContext = createContext<HideCtx>({ hiddenIds: new Set(), toggleHidden: () => { }, revealSubtree: () => { } });
 
 interface NodeSelectCtx {
   active: boolean;
@@ -169,7 +170,7 @@ function NoteNode({
 }: NodeProps) {
   const { collapsedIds, toggle } = useContext(ExpandContext);
   const expanded = !collapsedIds.has(node.id);
-  const { hiddenIds, toggleHidden } = useContext(HideContext);
+  const { hiddenIds, toggleHidden, revealSubtree } = useContext(HideContext);
   const isDirectlyHidden = hiddenIds.has(node.id);
   const isHidden = isEffectivelyHidden(node.id, nodes, hiddenIds);
   const { active: selectActive, selected: nodeSelected, toggle: selectToggle } = useContext(NodeSelectContext);
@@ -382,7 +383,7 @@ function NoteNode({
           ) : (
             <button onClick={(e) => {
                 if (selectable) { e.stopPropagation(); selectToggle(node.id); return; }
-                if (isHidden) return;
+                if (isHidden && !isDirectlyHidden) return;
                 if (window.innerWidth < 640) {
                   const rect = e.currentTarget.getBoundingClientRect();
                   const menuW = 160;
@@ -391,6 +392,7 @@ function NoteNode({
                   setShowMobileMenu(true);
                   return;
                 }
+                if (isHidden) return;
                 onEdit(node.id);
               }}
               className={`w-full text-left px-2 py-1 rounded-lg text-sm leading-relaxed text-gray-800 dark:text-gray-200 transition-colors ${isHidden ? "cursor-default" : "hover:bg-gray-100/80 dark:hover:bg-gray-800/60"}`}>
@@ -535,16 +537,20 @@ function NoteNode({
             <div className="fixed bottom-0 left-0 right-0 z-9999 bg-white dark:bg-gray-900 rounded-t-2xl shadow-2xl border-t border-gray-200 dark:border-gray-700 anim-slide-up">
               <div className="w-10 h-1 bg-gray-200 dark:bg-gray-700 rounded-full mx-auto mt-3 mb-1" />
               <div className="overflow-y-auto max-h-[70vh] py-2 pb-8">
-                <button onClick={() => { onEdit(node.id); setShowMobileMenu(false); }}
-                  className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                  Edit
-                </button>
-                <button onClick={() => { onAddChild(node.id); setShowMobileMenu(false); }}
-                  className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                  Add child
-                </button>
+                {!isDirectlyHidden && (
+                  <button onClick={() => { onEdit(node.id); setShowMobileMenu(false); }}
+                    className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    Edit
+                  </button>
+                )}
+                {!isDirectlyHidden && (
+                  <button onClick={() => { onAddChild(node.id); setShowMobileMenu(false); }}
+                    className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    Add child
+                  </button>
+                )}
                 {(!isHidden || isDirectlyHidden) && (
                   <button onClick={() => { toggleHidden(node.id); setShowMobileMenu(false); }}
                     className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
@@ -554,6 +560,13 @@ function NoteNode({
                       <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                     )}
                     {isDirectlyHidden ? "Show" : "Hide"}
+                  </button>
+                )}
+                {isDirectlyHidden && hasChildren && (
+                  <button onClick={() => { revealSubtree(node.id); setShowMobileMenu(false); }}
+                    className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    <svg className="w-4 h-4 text-violet-500 dark:text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                    Show all children
                   </button>
                 )}
                 <button onClick={(e) => {
@@ -838,11 +851,19 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
-        // Keep direct children hidden so "show parent" only reveals that node
+        // Keep direct children hidden so showing a node only reveals its own content
         Object.values(nodes).filter((n) => n.parentId === id).forEach((child) => next.add(child.id));
       } else {
         next.add(id);
       }
+      return next;
+    });
+  }
+
+  function revealSubtree(id: string) {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      getAllNodeIds(id, nodes).forEach((nid) => next.delete(nid));
       return next;
     });
   }
@@ -857,7 +878,7 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
     toggle: (id) => setCollapsedIds((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; }),
   };
 
-  const hideCtx: HideCtx = { hiddenIds, toggleHidden };
+  const hideCtx: HideCtx = { hiddenIds, toggleHidden, revealSubtree };
 
   const nodeSelectCtx: NodeSelectCtx = {
     active: nodeSelectionMode,
