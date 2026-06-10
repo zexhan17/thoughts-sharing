@@ -380,7 +380,19 @@ function NoteNode({
               />
             </div>
           ) : (
-            <button onClick={(e) => { if (selectable) { e.stopPropagation(); selectToggle(node.id); return; } if (!isHidden) onEdit(node.id); }}
+            <button onClick={(e) => {
+                if (selectable) { e.stopPropagation(); selectToggle(node.id); return; }
+                if (isHidden) return;
+                if (window.innerWidth < 640) {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const menuW = 160;
+                  const left = Math.max(4, Math.min(rect.left, window.innerWidth - menuW - 4));
+                  setMobileMenuPos({ top: rect.bottom + 4, left });
+                  setShowMobileMenu(true);
+                  return;
+                }
+                onEdit(node.id);
+              }}
               className={`w-full text-left px-2 py-1 rounded-lg text-sm leading-relaxed text-gray-800 dark:text-gray-200 transition-colors ${isHidden ? "cursor-default" : "hover:bg-gray-100/80 dark:hover:bg-gray-800/60"}`}>
               {isHidden
                 ? <span className="text-gray-400 dark:text-gray-600 select-none tracking-widest">••••••••••</span>
@@ -454,27 +466,15 @@ function NoteNode({
               )}
             </div>
 
-            {/* Mobile: ⋯ button + drag handle */}
-            <div className="flex sm:hidden items-center gap-0.5 self-start mt-0.5">
-              <button
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const menuW = 160;
-                  const left = Math.max(4, Math.min(rect.left - menuW + rect.width, window.innerWidth - menuW - 4));
-                  setMobileMenuPos({ top: rect.bottom + 4, left });
-                  setShowMobileMenu((s) => !s);
-                }}
-                className="w-7 h-7 flex items-center justify-center rounded text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-base leading-none"
-              >
-                ···
-              </button>
-              {depth > 0 && dragMode && (
+            {/* Mobile: drag handle only (menu opens via tap on node content) */}
+            {depth > 0 && dragMode && (
+              <div className="flex sm:hidden items-center self-start mt-0.5">
                 <span className="w-7 h-7 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 touch-none"
                   onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-16a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" /></svg>
                 </span>
-              )}
-            </div>
+              </div>
+            )}
           </>
         )}
 
@@ -536,6 +536,11 @@ function NoteNode({
               className="fixed z-9999 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
               style={{ top: mobileMenuPos.top, left: mobileMenuPos.left, minWidth: 160 }}
             >
+              <button onClick={() => { onEdit(node.id); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                Edit
+              </button>
               <button onClick={() => { onAddChild(node.id); setShowMobileMenu(false); }}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
