@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useNodes } from "../diary/useNodes";
+import { ConfirmDialog } from "../diary/ConfirmDialog";
 import type { TrashEntry } from "../diary/TrashDialog";
 import type { Route } from "./+types/trash";
 
-export function meta({}: Route.MetaArgs) {
+export function meta({ }: Route.MetaArgs) {
   return [{ title: "Trash — Thoughts" }];
 }
 
@@ -25,12 +26,12 @@ export default function TrashPage() {
   const { importThought } = useNodes();
 
   const [entries, setEntries] = useState<TrashEntry[]>([]);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [clearStep, setClearStep] = useState<"idle" | "confirm">("idle");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [toast, setToastMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    try { const r = localStorage.getItem(TRASH_KEY); if (r) setEntries(JSON.parse(r)); } catch {}
+    try { const r = localStorage.getItem(TRASH_KEY); if (r) setEntries(JSON.parse(r)); } catch { }
   }, []);
 
   function save(next: TrashEntry[]) {
@@ -52,13 +53,13 @@ export default function TrashPage() {
 
   function handleDeletePermanently(id: string) {
     save(entries.filter((e) => e.id !== id));
-    setConfirmDeleteId(null);
+    setDeleteId(null);
     showToast("Deleted permanently");
   }
 
   function handleClearAll() {
     save([]);
-    setClearStep("idle");
+    setShowClearConfirm(false);
     showToast("Trash cleared");
   }
 
@@ -74,7 +75,7 @@ export default function TrashPage() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            Back
+
           </button>
 
           <span className="w-px h-4 bg-gray-200 dark:bg-gray-700 shrink-0" />
@@ -102,32 +103,12 @@ export default function TrashPage() {
             {/* Clear all row */}
             <div className="flex items-center justify-between mb-4">
               <p className="text-xs text-gray-400 dark:text-gray-500">Deleted thoughts are kept for up to 50 items</p>
-
-              {clearStep === "idle" ? (
-                <button
-                  onClick={() => setClearStep("confirm")}
-                  className="text-xs font-medium text-red-400 hover:text-red-500 dark:text-red-500 dark:hover:text-red-400 transition-colors"
-                >
-                  Clear all
-                </button>
-              ) : (
-                <div className="flex items-center gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl px-3 py-2 anim-pop-in">
-                  <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                  <span className="text-xs text-red-600 dark:text-red-400 font-medium">Permanently delete all {entries.length} items?</span>
-                  <button
-                    onClick={handleClearAll}
-                    className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-2.5 py-1 rounded-lg transition-colors"
-                  >
-                    Delete all
-                  </button>
-                  <button
-                    onClick={() => setClearStep("idle")}
-                    className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="text-xs font-medium text-red-400 hover:text-red-500 dark:text-red-500 dark:hover:text-red-400 transition-colors"
+              >
+                Clear all
+              </button>
             </div>
 
             {/* Entries list */}
@@ -146,40 +127,22 @@ export default function TrashPage() {
                     </p>
                   </div>
 
-                  {confirmDeleteId === entry.id ? (
-                    <div className="shrink-0 flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl px-3 py-1.5 anim-pop-in">
-                      <span className="text-xs text-red-600 dark:text-red-400 font-medium">Delete forever?</span>
-                      <button
-                        onClick={() => handleDeletePermanently(entry.id)}
-                        className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded-lg transition-colors"
-                      >
-                        Delete
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteId(null)}
-                        className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="shrink-0 flex items-center gap-1">
-                      <button
-                        onClick={() => handleRestore(entry)}
-                        className="flex items-center gap-1.5 text-xs font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 px-2.5 py-1.5 rounded-lg transition-colors"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-                        Restore
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteId(entry.id)}
-                        className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 px-2.5 py-1.5 rounded-lg transition-colors"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        Delete
-                      </button>
-                    </div>
-                  )}
+                  <div className="shrink-0 flex items-center gap-1">
+                    <button
+                      onClick={() => handleRestore(entry)}
+                      className="flex items-center gap-1.5 text-xs font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 px-2.5 py-1.5 rounded-lg transition-colors"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                      Restore
+                    </button>
+                    <button
+                      onClick={() => setDeleteId(entry.id)}
+                      className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 px-2.5 py-1.5 rounded-lg transition-colors"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -193,6 +156,30 @@ export default function TrashPage() {
           <svg className="w-3.5 h-3.5 text-green-400 dark:text-green-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
           {toast}
         </div>
+      )}
+
+      {deleteId && (() => {
+        const entry = entries.find((e) => e.id === deleteId);
+        return (
+          <ConfirmDialog
+            message="Delete permanently?"
+            detail={entry?.label}
+            subtext="This cannot be undone."
+            confirmLabel="Delete forever"
+            onConfirm={() => handleDeletePermanently(deleteId)}
+            onCancel={() => setDeleteId(null)}
+          />
+        );
+      })()}
+
+      {showClearConfirm && (
+        <ConfirmDialog
+          message={`Delete all ${entries.length} item${entries.length !== 1 ? "s" : ""}?`}
+          subtext="This will permanently delete everything in trash and cannot be undone."
+          confirmLabel="Clear all"
+          onConfirm={handleClearAll}
+          onCancel={() => setShowClearConfirm(false)}
+        />
       )}
     </div>
   );

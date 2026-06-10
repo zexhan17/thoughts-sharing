@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 interface ConfirmDialogProps {
   message: string;
   detail?: string;
+  subtext?: string;
   confirmLabel?: string;
   showChildOption?: boolean;
   onConfirm: () => void;
@@ -10,7 +11,7 @@ interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
-export function ConfirmDialog({ message, detail, confirmLabel = "Delete", showChildOption, onConfirm, onConfirmKeepChildren, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({ message, detail, subtext, confirmLabel = "Delete", showChildOption, onConfirm, onConfirmKeepChildren, onCancel }: ConfirmDialogProps) {
   const [deleteChildren, setDeleteChildren] = useState(false);
 
   useEffect(() => {
@@ -60,7 +61,7 @@ export function ConfirmDialog({ message, detail, confirmLabel = "Delete", showCh
           </label>
         ) : (
           <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">
-            This will also delete all child notes.
+            {subtext ?? "This will also delete all child notes."}
           </p>
         )}
         <div className="flex justify-end gap-2">

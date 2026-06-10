@@ -765,7 +765,10 @@ export function NoteTree({ rootId, nodes, initialEditId, collapseSignal, expandS
 
   function handleCancel(id: string) {
     const node = nodes[id];
-    if (node && !node.content.trim()) onDelete(id);
+    if (node && !node.content.trim()) {
+      const hasChildren = Object.values(nodes).some((n) => n.parentId === id);
+      if (!hasChildren) onDelete(id);
+    }
     setEditingId(null);
   }
 

@@ -46,6 +46,23 @@ export default function ThoughtDetail() {
 
   const rootId = id!;
 
+  // Refs to access latest values in the unmount cleanup without stale closures
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+  const deleteNodeRef = useRef(deleteNode);
+  deleteNodeRef.current = deleteNode;
+
+  // Delete the root thought on unmount if it was never given any content
+  useEffect(() => {
+    return () => {
+      const currentNodes = nodesRef.current;
+      const root = currentNodes[rootId];
+      if (!root || root.content.trim()) return;
+      const hasChildren = Object.values(currentNodes).some((n) => n.parentId === rootId);
+      if (!hasChildren) deleteNodeRef.current(rootId);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const headerRef = useRef<HTMLElement>(null);
   const [headerHeight, setHeaderHeight] = useState(56);
   useEffect(() => {
