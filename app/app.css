@@ -40,6 +40,12 @@ html, body {
 .anim-pop-in      { animation: pop-in           0.25s cubic-bezier(.22,.68,0,1.2) both; }
 .anim-fade-up     { animation: fade-up          0.22s cubic-bezier(.22,.68,0,1.2) both; }
 
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.anim-slide-up { animation: slide-up 0.28s cubic-bezier(.32,.72,0,1) both; }
+
 /* ── Scrollbar ───────────────────────────────────────────────────────── */
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }

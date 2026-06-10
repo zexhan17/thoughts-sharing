@@ -531,60 +531,60 @@ function NoteNode({
         )}
         {showMobileMenu && createPortal(
           <>
-            <div className="fixed inset-0 z-9998" onClick={() => setShowMobileMenu(false)} />
-            <div
-              className="fixed z-9999 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
-              style={{ top: mobileMenuPos.top, left: mobileMenuPos.left, minWidth: 160 }}
-            >
-              <button onClick={() => { onEdit(node.id); setShowMobileMenu(false); }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                Edit
-              </button>
-              <button onClick={() => { onAddChild(node.id); setShowMobileMenu(false); }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Add child
-              </button>
-              {(!isHidden || isDirectlyHidden) && (
-                <button onClick={() => { toggleHidden(node.id); setShowMobileMenu(false); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                  {isDirectlyHidden ? (
-                    <svg className="w-4 h-4 text-violet-500 dark:text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                  ) : (
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                  )}
-                  {isDirectlyHidden ? "Show" : "Hide"}
+            <div className="fixed inset-0 z-9998 bg-black/40" onClick={() => setShowMobileMenu(false)} />
+            <div className="fixed bottom-0 left-0 right-0 z-9999 bg-white dark:bg-gray-900 rounded-t-2xl shadow-2xl border-t border-gray-200 dark:border-gray-700 anim-slide-up">
+              <div className="w-10 h-1 bg-gray-200 dark:bg-gray-700 rounded-full mx-auto mt-3 mb-1" />
+              <div className="overflow-y-auto max-h-[70vh] py-2 pb-8">
+                <button onClick={() => { onEdit(node.id); setShowMobileMenu(false); }}
+                  className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  Edit
                 </button>
-              )}
-              <button onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const w = 252;
-                const left = Math.max(4, Math.min(rect.left - 80, window.innerWidth - w - 4));
-                setPickerPos({ top: rect.bottom + 4, left });
-                setShowMobileMenu(false);
-                setShowColorPicker(true);
-              }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16" style={{ color: nodeColor ? nodeColor.hex : "#9ca3af" }}>
-                  <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm0 14.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zM3 8a1 1 0 1 1 2 0A1 1 0 0 1 3 8zm2-3.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3-2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3 2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm1 3.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />
-                </svg>
-                Color
-              </button>
-              {depth > 0 && onMove && (
-                <button onClick={() => { onMove(node.id); setShowMobileMenu(false); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-                  Move
+                <button onClick={() => { onAddChild(node.id); setShowMobileMenu(false); }}
+                  className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Add child
                 </button>
-              )}
-              {depth > 0 && (
-                <button onClick={() => { setShowMobileMenu(false); setShowDeleteDialog(true); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  Delete
+                {(!isHidden || isDirectlyHidden) && (
+                  <button onClick={() => { toggleHidden(node.id); setShowMobileMenu(false); }}
+                    className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    {isDirectlyHidden ? (
+                      <svg className="w-4 h-4 text-violet-500 dark:text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                    ) : (
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                    )}
+                    {isDirectlyHidden ? "Show" : "Hide"}
+                  </button>
+                )}
+                <button onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const w = 252;
+                  const left = Math.max(4, Math.min(rect.left - 80, window.innerWidth - w - 4));
+                  setPickerPos({ top: rect.bottom + 4, left });
+                  setShowMobileMenu(false);
+                  setShowColorPicker(true);
+                }}
+                  className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16" style={{ color: nodeColor ? nodeColor.hex : "#9ca3af" }}>
+                    <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm0 14.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2zM3 8a1 1 0 1 1 2 0A1 1 0 0 1 3 8zm2-3.5a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3-2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm3 2a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm1 3.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />
+                  </svg>
+                  Color
                 </button>
-              )}
+                {depth > 0 && onMove && (
+                  <button onClick={() => { onMove(node.id); setShowMobileMenu(false); }}
+                    className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                    Move
+                  </button>
+                )}
+                {depth > 0 && (
+                  <button onClick={() => { setShowMobileMenu(false); setShowDeleteDialog(true); }}
+                    className="w-full flex items-center gap-3 px-5 py-3 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    Delete
+                  </button>
+                )}
+              </div>
             </div>
           </>,
           document.body
