@@ -12,7 +12,7 @@ import { SEED_THOUGHTS } from "../diary/seedData";
 
 import type { Route } from "./+types/home";
 
-export function meta({}: Route.MetaArgs) {
+export function meta({ }: Route.MetaArgs) {
   return [
     { title: "Thoughts" },
     { name: "description", content: "A tree-structured digital notepad" },
@@ -25,33 +25,33 @@ const GLOBAL_LOCK_KEY = "diary-global-lock-hash";
 const LOCKED_IDS_KEY = "diary-locked-ids";
 
 const LABEL_COLORS = [
-  { id: "red",    hex: "#f87171" },
+  { id: "red", hex: "#f87171" },
   { id: "orange", hex: "#fb923c" },
   { id: "yellow", hex: "#facc15" },
-  { id: "green",  hex: "#4ade80" },
-  { id: "teal",   hex: "#2dd4bf" },
-  { id: "blue",   hex: "#60a5fa" },
+  { id: "green", hex: "#4ade80" },
+  { id: "teal", hex: "#2dd4bf" },
+  { id: "blue", hex: "#60a5fa" },
   { id: "purple", hex: "#a78bfa" },
-  { id: "pink",   hex: "#f472b6" },
+  { id: "pink", hex: "#f472b6" },
 ];
 
 const ACCENT_COLORS = [
-  { id: "red",     name: "Red",     hex: "#dc2626" },
-  { id: "rose",    name: "Rose",    hex: "#e11d48" },
-  { id: "orange",  name: "Orange",  hex: "#ea580c" },
-  { id: "amber",   name: "Amber",   hex: "#d97706" },
-  { id: "yellow",  name: "Yellow",  hex: "#ca8a04" },
-  { id: "lime",    name: "Lime",    hex: "#65a30d" },
-  { id: "green",   name: "Green",   hex: "#059669" },
-  { id: "teal",    name: "Teal",    hex: "#0d9488" },
-  { id: "cyan",    name: "Cyan",    hex: "#0891b2" },
-  { id: "sky",     name: "Sky",     hex: "#0284c7" },
-  { id: "blue",    name: "Blue",    hex: "#2563eb" },
-  { id: "indigo",  name: "Indigo",  hex: "#4f46e5" },
-  { id: "violet",  name: "Violet",  hex: "#7c3aed" },
-  { id: "purple",  name: "Purple",  hex: "#9333ea" },
+  { id: "red", name: "Red", hex: "#dc2626" },
+  { id: "rose", name: "Rose", hex: "#e11d48" },
+  { id: "orange", name: "Orange", hex: "#ea580c" },
+  { id: "amber", name: "Amber", hex: "#d97706" },
+  { id: "yellow", name: "Yellow", hex: "#ca8a04" },
+  { id: "lime", name: "Lime", hex: "#65a30d" },
+  { id: "green", name: "Green", hex: "#059669" },
+  { id: "teal", name: "Teal", hex: "#0d9488" },
+  { id: "cyan", name: "Cyan", hex: "#0891b2" },
+  { id: "sky", name: "Sky", hex: "#0284c7" },
+  { id: "blue", name: "Blue", hex: "#2563eb" },
+  { id: "indigo", name: "Indigo", hex: "#4f46e5" },
+  { id: "violet", name: "Violet", hex: "#7c3aed" },
+  { id: "purple", name: "Purple", hex: "#9333ea" },
   { id: "fuchsia", name: "Fuchsia", hex: "#c026d3" },
-  { id: "pink",    name: "Pink",    hex: "#db2777" },
+  { id: "pink", name: "Pink", hex: "#db2777" },
 ] as const;
 type ColorId = typeof ACCENT_COLORS[number]["id"];
 
@@ -78,17 +78,6 @@ async function hashGlobalPin(pin: string): Promise<string> {
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function countDescendants(rootId: string, nodes: Record<string, import("../diary/types").DiaryNode>): number {
-  return Object.values(nodes).filter((n) => {
-    let cur: typeof n | undefined = n;
-    while (cur?.parentId) {
-      if (cur.parentId === rootId) return true;
-      cur = nodes[cur.parentId];
-    }
-    return false;
-  }).length;
-}
-
 function formatDate(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
@@ -99,16 +88,6 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function getPreview(rootId: string, nodes: Record<string, import("../diary/types").DiaryNode>): string {
-  const root = nodes[rootId];
-  if (!root) return "";
-  const lines = root.content.split("\n").filter(Boolean);
-  if (lines.length > 1) return lines.slice(1).join(" ").slice(0, 120);
-  const firstChild = Object.values(nodes)
-    .filter((n) => n.parentId === rootId)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
-  return firstChild ? firstLine(firstChild.content) : "";
-}
 
 export default function Home() {
   const navigate = useNavigate();
@@ -133,6 +112,7 @@ export default function Home() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showExportConfirm, setShowExportConfirm] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   // ── Reorder mode ──
   const [reorderMode, setReorderMode] = useState(false);
@@ -173,13 +153,13 @@ export default function Home() {
     const matchedColor = (ACCENT_COLORS.find((c) => c.id === savedColor) ? savedColor : "violet") as ColorId;
     setColorId(matchedColor);
     setIsDark(localStorage.getItem("app-dark") === "true");
-    try { const r = localStorage.getItem(COLORS_KEY); if (r) setColorsMap(JSON.parse(r)); } catch {}
+    try { const r = localStorage.getItem(COLORS_KEY); if (r) setColorsMap(JSON.parse(r)); } catch { }
     const hash = localStorage.getItem(GLOBAL_LOCK_KEY);
     setGlobalLockHash(hash);
     if (!hash) { setGlobalUnlocked(true); } else { setGlobalUnlocked(sessionStorage.getItem("diary-vault-unlocked") === "1"); }
-    try { const r = localStorage.getItem(LOCKED_IDS_KEY); if (r) setLockedIds(new Set(JSON.parse(r))); } catch {}
-    try { const r = localStorage.getItem("diary-root-order"); if (r) setRootOrder(JSON.parse(r)); } catch {}
-    try { const r = localStorage.getItem(TRASH_KEY); if (r) setTrashCount(JSON.parse(r).length); } catch {}
+    try { const r = localStorage.getItem(LOCKED_IDS_KEY); if (r) setLockedIds(new Set(JSON.parse(r))); } catch { }
+    try { const r = localStorage.getItem("diary-root-order"); if (r) setRootOrder(JSON.parse(r)); } catch { }
+    try { const r = localStorage.getItem(TRASH_KEY); if (r) setTrashCount(JSON.parse(r).length); } catch { }
   }, []);
 
   useEffect(() => {
@@ -318,7 +298,7 @@ export default function Home() {
       setSelectionMode(true);
       setSelectedIds(new Set([id]));
       setShowOverflow(false);
-      try { navigator.vibrate?.(50); } catch {}
+      try { navigator.vibrate?.(50); } catch { }
     }, 500);
   }
   function cancelLongPress() {
@@ -462,9 +442,7 @@ export default function Home() {
               </svg>
             </div>
             <span className="font-semibold text-gray-900 dark:text-gray-50 text-[14px] tracking-tight">Thoughts</span>
-            {displayedRoots.length > 0 && (
-              <span className="text-xs text-gray-400 dark:text-gray-600 font-medium">{displayedRoots.length}</span>
-            )}
+
           </div>
 
           {selectionMode ? (
@@ -504,19 +482,22 @@ export default function Home() {
                 className="hidden sm:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
               </button>
+              <button onClick={() => { seedThoughts(SEED_THOUGHTS); showToast("Sample thoughts loaded"); }} title="Load demo data"
+                className="hidden sm:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+              </button>
 
               {/* Vault lock — always visible */}
               <div className="relative" ref={vaultMenuRef}>
                 <button
                   onClick={handleVaultButtonClick}
                   title={!globalLockHash ? "Set vault PIN" : isVaultLocked ? "Unlock vault" : "Vault unlocked"}
-                  className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
-                    isVaultLocked
-                      ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
-                      : globalLockHash
+                  className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${isVaultLocked
+                    ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                    : globalLockHash
                       ? "text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20"
                       : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800"
-                  }`}
+                    }`}
                 >
                   {isVaultLocked
                     ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
@@ -604,55 +585,60 @@ export default function Home() {
                 </button>
                 {showOverflow && (
                   <div className="absolute right-0 top-9 z-50 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-1 min-w-44 anim-pop-in">
-                      <button onClick={() => { setShowOverflow(false); importInputRef.current?.click(); }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                        Import
+                    <button onClick={() => { setShowOverflow(false); importInputRef.current?.click(); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                      Import
+                    </button>
+                    <button onClick={() => { setShowOverflow(false); navigate("/trash"); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <div className="relative shrink-0">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        {trashCount > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-gray-400 dark:bg-gray-600 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">{trashCount > 9 ? "9+" : trashCount}</span>}
+                      </div>
+                      Trash
+                    </button>
+                    {displayedRoots.length > 1 && (
+                      <button onClick={() => { setShowOverflow(false); setReorderMode((s) => !s); if (selectionMode) exitSelectionMode(); }}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${reorderMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"}`}>
+                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                        Reorder
                       </button>
-                      <button onClick={() => { setShowOverflow(false); navigate("/trash"); }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                        <div className="relative shrink-0">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          {trashCount > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-gray-400 dark:bg-gray-600 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">{trashCount > 9 ? "9+" : trashCount}</span>}
-                        </div>
-                        Trash
+                    )}
+                    {displayedRoots.length > 0 && (
+                      <button onClick={() => { setShowOverflow(false); setSelectionMode((s) => !s); setSelectedIds(new Set()); if (reorderMode) setReorderMode(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${selectionMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"}`}>
+                        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" strokeWidth={2} /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12l3 3 5-5" /></svg>
+                        Select
                       </button>
-                      {displayedRoots.length > 1 && (
-                        <button onClick={() => { setShowOverflow(false); setReorderMode((s) => !s); if (selectionMode) exitSelectionMode(); }}
-                          className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${reorderMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"}`}>
-                          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-                          Reorder
-                        </button>
-                      )}
-                      {displayedRoots.length > 0 && (
-                        <button onClick={() => { setShowOverflow(false); setSelectionMode((s) => !s); setSelectedIds(new Set()); if (reorderMode) setReorderMode(false); }}
-                          className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${selectionMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"}`}>
-                          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" strokeWidth={2} /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12l3 3 5-5" /></svg>
-                          Select
-                        </button>
-                      )}
-                      <div className="border-t border-gray-100 dark:border-gray-800 my-1" />
-                      <button
-                        onClick={(e) => {
-                          setShowOverflow(false);
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          const w = 244;
-                          setThemePickerPos({ top: rect.bottom + 8, left: Math.max(4, Math.min(rect.left, window.innerWidth - w - 4)) });
-                          setShowThemePicker(true);
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                        <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" /></svg>
-                        Appearance
-                      </button>
-                    </div>
+                    )}
+                    <div className="border-t border-gray-100 dark:border-gray-800 my-1" />
+                    <button
+                      onClick={(e) => {
+                        setShowOverflow(false);
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const w = 244;
+                        setThemePickerPos({ top: rect.bottom + 8, left: Math.max(4, Math.min(rect.left, window.innerWidth - w - 4)) });
+                        setShowThemePicker(true);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" /></svg>
+                      Appearance
+                    </button>
+                    <button onClick={() => { setShowOverflow(false); seedThoughts(SEED_THOUGHTS); showToast("Sample thoughts loaded"); }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                      Load demo
+                    </button>
+                  </div>
                 )}
               </div>
 
-              {/* New — icon-only on mobile, text on desktop */}
+              {/* New — desktop only (mobile uses FAB) */}
               <button onClick={handleCreateRoot} title="New thought"
-                className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm ml-0.5">
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm ml-0.5">
                 <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                <span className="hidden sm:inline">New</span>
+                New
               </button>
             </div>
           )}
@@ -670,7 +656,7 @@ export default function Home() {
       </header>
 
       {/* ── Main content ── */}
-      <main className="max-w-5xl mx-auto px-4 py-6">
+      <main className="max-w-5xl mx-auto px-4 py-6 pb-24 sm:pb-6">
         {!hydrated ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {[1, 2, 3].map((i) => (
@@ -721,8 +707,6 @@ export default function Home() {
               const isDragOver = dragOverId === root.id;
               const isSelected = selectedIds.has(root.id);
               const labelHex = LABEL_COLORS.find((c) => c.id === colorsMap[root.id])?.hex;
-              const preview = getPreview(root.id, nodes);
-              const nodeCount = countDescendants(root.id, nodes);
               const dateStr = formatDate(root.updatedAt ?? root.createdAt);
 
               return (
@@ -742,8 +726,8 @@ export default function Home() {
                     selectionMode
                       ? () => setSelectedIds((prev) => { const n = new Set(prev); n.has(root.id) ? n.delete(root.id) : n.add(root.id); return n; })
                       : reorderMode
-                      ? undefined
-                      : () => handleSelectRoot(root.id)
+                        ? undefined
+                        : () => handleSelectRoot(root.id)
                   }
                   className={[
                     "group relative flex flex-col rounded-2xl border bg-white dark:bg-gray-900 select-none",
@@ -785,27 +769,13 @@ export default function Home() {
                       )}
                     </div>
 
-                    {/* Preview */}
-                    {preview && (
-                      <p className="text-sm text-gray-400 dark:text-gray-500 leading-relaxed line-clamp-2 mb-3 flex-1">
-                        {preview}
-                      </p>
-                    )}
-
                     {/* Footer */}
                     <div className="flex items-center gap-2 mt-auto pt-3 border-t border-gray-100 dark:border-gray-800">
-                      {nodeCount > 0 && (
-                        <span className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10M4 18h7" /></svg>
-                          {nodeCount}
-                        </span>
-                      )}
-                      <span className="text-xs text-gray-300 dark:text-gray-700">·</span>
                       <span className="text-xs text-gray-400 dark:text-gray-500">{dateStr}</span>
 
                       {/* Quick actions — only when no special mode active */}
                       {!selectionMode && !reorderMode && (
-                        <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="ml-auto flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={(e) => handleCopyShare(root.id, e)}
                             title="Copy share link"
@@ -843,7 +813,7 @@ export default function Home() {
                             }
                           </button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleDeleteRoot(root.id); }}
+                            onClick={(e) => { e.stopPropagation(); setPendingDeleteId(root.id); }}
                             title="Delete"
                             className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                           >
@@ -860,6 +830,18 @@ export default function Home() {
         )}
       </main>
 
+      {/* ── Mobile FAB: New thought ── */}
+      {!selectionMode && !reorderMode && (
+        <button
+          onClick={handleCreateRoot}
+          title="New thought"
+          className="sm:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-5 py-3 bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white text-sm font-semibold rounded-full shadow-lg transition-colors"
+        >
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          New thought
+        </button>
+      )}
+
       {/* ── Toast ── */}
       {toast && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 bg-gray-900/90 dark:bg-white/90 text-white dark:text-gray-900 text-sm font-medium rounded-full shadow-xl anim-fade-up pointer-events-none">
@@ -869,6 +851,13 @@ export default function Home() {
       )}
 
       {/* ── Confirm dialogs ── */}
+      {pendingDeleteId && (
+        <ConfirmDialog
+          message="Delete this thought? It will move to Trash."
+          onConfirm={() => { handleDeleteRoot(pendingDeleteId); setPendingDeleteId(null); }}
+          onCancel={() => setPendingDeleteId(null)}
+        />
+      )}
       {showDeleteConfirm && (
         <ConfirmDialog
           message={`Delete ${selectedIds.size} thought${selectedIds.size !== 1 ? "s" : ""}? They will move to Trash.`}

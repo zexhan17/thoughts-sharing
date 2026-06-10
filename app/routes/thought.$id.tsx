@@ -86,9 +86,12 @@ export default function ThoughtDetail() {
   const [toast, setToastMsg] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Auto-save indicator ──
-  const [savedRecently, setSavedRecently] = useState(false);
+  // ── Auto-save toast (debounced) ──
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Auto-edit for new (empty) thoughts ──
+  const [autoEditId, setAutoEditId] = useState<string | null>(null);
+  const autoEditTriggered = useRef(false);
 
   // ── Colors ──
   const [colorsMap, setColorsMap] = useState<Record<string, string>>({});
@@ -119,13 +122,7 @@ export default function ThoughtDetail() {
     return () => document.removeEventListener("keydown", onKey);
   }, [undo, redo]);
 
-  useEffect(() => {
-    if (!lastSavedAt) return;
-    setSavedRecently(true);
-    if (savedTimer.current) clearTimeout(savedTimer.current);
-    savedTimer.current = setTimeout(() => setSavedRecently(false), 2500);
-    return () => { if (savedTimer.current) clearTimeout(savedTimer.current); };
-  }, [lastSavedAt]);
+  const root = nodes[rootId];
 
   function showToast(msg: string) {
     setToastMsg(msg);
@@ -133,7 +130,19 @@ export default function ThoughtDetail() {
     toastTimer.current = setTimeout(() => setToastMsg(null), 3500);
   }
 
-  const root = nodes[rootId];
+  useEffect(() => {
+    if (!lastSavedAt) return;
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => showToast("Saved"), 1500);
+    return () => { if (savedTimer.current) clearTimeout(savedTimer.current); };
+  }, [lastSavedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!hydrated || !root || autoEditTriggered.current) return;
+    autoEditTriggered.current = true;
+    if (root.content.trim() === "") setAutoEditId(rootId);
+  }, [hydrated, root, rootId]);
+
   const isVaultLocked = !!globalLockHash && !globalUnlocked;
   const isProtected = lockedIds.has(rootId);
   const thoughtIsLocked = isProtected && isVaultLocked;
@@ -226,7 +235,11 @@ export default function ThoughtDetail() {
 
         <div className="max-w-5xl mx-auto px-3 sm:px-4 py-1.5 flex items-center gap-x-1 min-h-12">
           {/* Back */}
-          <button onClick={() => navigate("/")} title="Back to all thoughts"
+          <button onClick={() => {
+            const hasChildren = Object.values(nodes).some(n => n.parentId === rootId);
+            if (root && root.content.trim() === "" && !hasChildren) deleteNode(rootId);
+            navigate("/");
+          }} title="Back to all thoughts"
             className="cursor-pointer flex items-center gap-1 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100 transition-colors shrink-0 mr-1">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -240,6 +253,16 @@ export default function ThoughtDetail() {
             {/* Toolbar — only when accessible */}
             {!thoughtIsLocked && root && (
               <div className="flex items-center gap-x-0.5 min-w-max ml-auto">
+                {/* Add child of root */}
+                <button
+                  onClick={() => { const nid = createNode("", rootId); setAutoEditId(nid); }}
+                  title="Add node"
+                  className="w-10 h-10 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                </button>
+
+                <span className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1 self-center shrink-0" />
+
                 {/* Undo / Redo */}
                 <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)"
                   className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${canUndo ? "text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800" : "text-gray-200 dark:text-gray-700 cursor-not-allowed"}`}>
@@ -324,13 +347,6 @@ export default function ThoughtDetail() {
                   }
                 </button>
 
-                {/* Auto-save indicator */}
-                {savedRecently && (
-                  <span className="text-xs text-gray-400 dark:text-gray-600 anim-fade-up flex items-center gap-1 ml-1 shrink-0">
-                    <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    Saved
-                  </span>
-                )}
               </div>
             )}
 
@@ -376,7 +392,7 @@ export default function ThoughtDetail() {
           <NoteTree
             rootId={rootId}
             nodes={nodes}
-            initialEditId={null}
+            initialEditId={autoEditId}
             collapseSignal={collapseSignal}
             expandSignal={expandSignal}
             hideSignal={hideSignal}
