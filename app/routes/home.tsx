@@ -433,7 +433,7 @@ export default function Home() {
       <input ref={importInputRef} type="file" accept=".json" multiple className="hidden" onChange={handleImportFile} />
 
       {/* ── Header ── */}
-      <header className="sticky top-0 z-20 bg-gray-50/90 dark:bg-[#0a0a0b]/90 backdrop-blur-md border-b border-gray-200/70 dark:border-gray-800/70">
+      <header className="sticky top-0 z-20 bg-gray-50/90 dark:bg-[#0a0a0b]/90 backdrop-blur-md border-b border-violet-200/50 dark:border-violet-900/40">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-2">
           {/* Brand */}
           <div className="flex items-center gap-2.5 mr-auto min-w-0">
@@ -472,7 +472,7 @@ export default function Home() {
               </button>
               {/* Exit selection */}
               <button onClick={exitSelectionMode} title="Cancel"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors ml-0.5">
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-violet-100/60 dark:hover:bg-violet-900/30 transition-colors ml-0.5">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -480,11 +480,11 @@ export default function Home() {
             <div className="flex items-center gap-1">
               {/* ── Desktop-only icons ── */}
               <button onClick={() => importInputRef.current?.click()} title="Import thoughts"
-                className="hidden sm:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                className="hidden sm:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-violet-100/60 dark:hover:bg-violet-900/30 transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
               </button>
               <button onClick={() => { seedThoughts(SEED_THOUGHTS); showToast("Sample thoughts loaded"); }} title="Load demo data"
-                className="hidden sm:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                className="hidden sm:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-violet-100/60 dark:hover:bg-violet-900/30 transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
               </button>
 
@@ -497,7 +497,7 @@ export default function Home() {
                     ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
                     : globalLockHash
                       ? "text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20"
-                      : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800"
+                      : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-violet-100/60 dark:hover:bg-violet-900/30"
                     }`}
                 >
                   {isVaultLocked
@@ -507,14 +507,14 @@ export default function Home() {
                 </button>
                 {showVaultMenu && (
                   <>
-                    <div className="absolute right-0 top-9 z-50 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-1 min-w-35 anim-pop-in">
+                    <div className="absolute right-0 top-9 z-50 bg-(--card-bg) dark:bg-gray-900 rounded-xl shadow-2xl border border-violet-200/70 dark:border-violet-800/60 py-1 min-w-35 anim-pop-in">
                       <button onClick={() => { setShowVaultMenu(false); setGlobalUnlocked(false); sessionStorage.removeItem("diary-vault-unlocked"); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-violet-50/60 dark:hover:bg-violet-900/20 transition-colors">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                         Lock vault
                       </button>
                       <button onClick={() => { setShowVaultMenu(false); setVaultError(""); setVaultDialog("change-verify"); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-violet-50/60 dark:hover:bg-violet-900/20 transition-colors">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                         Change PIN
                       </button>
@@ -525,7 +525,7 @@ export default function Home() {
 
               {/* Trash — desktop only */}
               <button onClick={() => navigate("/trash")} title="Trash"
-                className="relative hidden sm:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                className="relative hidden sm:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-violet-100/60 dark:hover:bg-violet-900/30 transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 {trashCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-gray-400 dark:bg-gray-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
@@ -539,7 +539,7 @@ export default function Home() {
                 <button
                   onClick={() => { setReorderMode((s) => !s); if (selectionMode) exitSelectionMode(); }}
                   title={reorderMode ? "Done reordering" : "Reorder thoughts"}
-                  className={`hidden sm:flex w-8 h-8 items-center justify-center rounded-lg transition-colors ${reorderMode ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400" : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800"}`}
+                  className={`hidden sm:flex w-8 h-8 items-center justify-center rounded-lg transition-colors ${reorderMode ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400" : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-violet-100/60 dark:hover:bg-violet-900/30"}`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
                 </button>
@@ -550,7 +550,7 @@ export default function Home() {
                 <button
                   onClick={() => { setSelectionMode((s) => !s); setSelectedIds(new Set()); if (reorderMode) setReorderMode(false); }}
                   title="Select thoughts"
-                  className={`hidden sm:flex w-8 h-8 items-center justify-center rounded-lg transition-colors ${selectionMode ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400" : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800"}`}
+                  className={`hidden sm:flex w-8 h-8 items-center justify-center rounded-lg transition-colors ${selectionMode ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400" : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-violet-100/60 dark:hover:bg-violet-900/30"}`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" strokeWidth={2} /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12l3 3 5-5" /></svg>
                 </button>
@@ -558,7 +558,7 @@ export default function Home() {
 
               {/* Search — always visible */}
               <button onClick={() => setShowSearch(true)} title="Search (Ctrl+K)"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-violet-100/60 dark:hover:bg-violet-900/30 transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               </button>
 
@@ -571,7 +571,7 @@ export default function Home() {
                   setShowThemePicker((s) => !s);
                 }}
                 title="Appearance"
-                className="hidden sm:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                className="hidden sm:flex w-8 h-8 items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-violet-100/60 dark:hover:bg-violet-900/30 transition-colors">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" /></svg>
               </button>
 
@@ -580,19 +580,19 @@ export default function Home() {
                 <button
                   onClick={() => setShowOverflow((s) => !s)}
                   title="More"
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-violet-100/60 dark:hover:bg-violet-900/30 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
                 </button>
                 {showOverflow && (
-                  <div className="absolute right-0 top-9 z-50 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-1 min-w-44 anim-pop-in">
+                  <div className="absolute right-0 top-9 z-50 bg-(--card-bg) dark:bg-gray-900 rounded-xl shadow-2xl border border-violet-200/70 dark:border-violet-800/60 py-1 min-w-44 anim-pop-in">
                     <button onClick={() => { setShowOverflow(false); importInputRef.current?.click(); }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-violet-50/60 dark:hover:bg-violet-900/20 transition-colors">
                       <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                       Import
                     </button>
                     <button onClick={() => { setShowOverflow(false); navigate("/trash"); }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-violet-50/60 dark:hover:bg-violet-900/20 transition-colors">
                       <div className="relative shrink-0">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         {trashCount > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-gray-400 dark:bg-gray-600 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">{trashCount > 9 ? "9+" : trashCount}</span>}
@@ -601,19 +601,19 @@ export default function Home() {
                     </button>
                     {displayedRoots.length > 1 && (
                       <button onClick={() => { setShowOverflow(false); setReorderMode((s) => !s); if (selectionMode) exitSelectionMode(); }}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${reorderMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"}`}>
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${reorderMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20" : "text-gray-700 dark:text-gray-300 hover:bg-violet-50/60 dark:hover:bg-violet-900/20"}`}>
                         <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
                         Reorder
                       </button>
                     )}
                     {displayedRoots.length > 0 && (
                       <button onClick={() => { setShowOverflow(false); setSelectionMode((s) => !s); setSelectedIds(new Set()); if (reorderMode) setReorderMode(false); }}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${selectionMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"}`}>
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${selectionMode ? "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20" : "text-gray-700 dark:text-gray-300 hover:bg-violet-50/60 dark:hover:bg-violet-900/20"}`}>
                         <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" strokeWidth={2} /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12l3 3 5-5" /></svg>
                         Select
                       </button>
                     )}
-                    <div className="border-t border-gray-100 dark:border-gray-800 my-1" />
+                    <div className="border-t border-violet-100/70 dark:border-violet-900/30 my-1" />
                     <button
                       onClick={(e) => {
                         setShowOverflow(false);
@@ -622,12 +622,12 @@ export default function Home() {
                         setThemePickerPos({ top: rect.bottom + 8, left: Math.max(4, Math.min(rect.left, window.innerWidth - w - 4)) });
                         setShowThemePicker(true);
                       }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-violet-50/60 dark:hover:bg-violet-900/20 transition-colors">
                       <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" /></svg>
                       Appearance
                     </button>
                     <button onClick={() => { setShowOverflow(false); seedThoughts(SEED_THOUGHTS); showToast("Sample thoughts loaded"); }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-violet-50/60 dark:hover:bg-violet-900/20 transition-colors">
                       <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
                       Load demo
                     </button>
@@ -682,7 +682,7 @@ export default function Home() {
                 Create first thought
               </button>
               <button onClick={() => { seedThoughts(SEED_THOUGHTS); showToast("Sample thoughts loaded"); }}
-                className="px-5 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors shadow-sm">
+                className="px-5 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-violet-200/70 dark:border-violet-800/60 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors shadow-sm">
                 Load demo
               </button>
             </div>
@@ -731,14 +731,14 @@ export default function Home() {
                         : () => handleSelectRoot(root.id)
                   }
                   className={[
-                    "group relative flex flex-col rounded-2xl border bg-white dark:bg-gray-900 select-none",
+                    "group relative flex flex-col rounded-2xl border bg-(--card-bg) dark:bg-gray-900 select-none",
                     "transition-all duration-150",
                     reorderMode ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
                     isDragging ? "opacity-40 scale-95" : "",
                     isDragOver ? "ring-2 ring-violet-400 dark:ring-violet-500 scale-[1.02]" : "",
                     selectionMode && isSelected
                       ? "border-violet-400 dark:border-violet-500 ring-2 ring-violet-400/30 dark:ring-violet-500/30"
-                      : !isDragOver ? "border-gray-200/80 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)]" : "",
+                      : !isDragOver ? "border-violet-200/60 dark:border-violet-900/40 hover:border-violet-300/80 dark:hover:border-violet-800/60 hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)]" : "",
                   ].filter(Boolean).join(" ")}
                 >
                   {/* Color strip */}
@@ -771,7 +771,7 @@ export default function Home() {
                     </div>
 
                     {/* Footer */}
-                    <div className="flex items-center gap-2 mt-auto pt-3 border-t border-gray-100 dark:border-gray-800">
+                    <div className="flex items-center gap-2 mt-auto pt-3 border-t border-violet-100/70 dark:border-violet-900/30">
                       <span className="text-xs text-gray-400 dark:text-gray-500">{dateStr}</span>
 
                       {/* Quick actions — only when no special mode active */}
@@ -898,7 +898,7 @@ export default function Home() {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setColorPickerRootId(null)} />
           <div
-            className="fixed z-50 flex items-center gap-2 p-2.5 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 flex-wrap anim-pop-in"
+            className="fixed z-50 flex items-center gap-2 p-2.5 bg-(--card-bg) dark:bg-gray-900 rounded-2xl shadow-2xl border border-violet-200/70 dark:border-violet-800/60 flex-wrap anim-pop-in"
             style={{ top: colorPickerPos.top, left: colorPickerPos.left, maxWidth: "calc(100vw - 8px)" }}
           >
             {LABEL_COLORS.map((c) => (
@@ -920,28 +920,28 @@ export default function Home() {
         <>
           <div className="fixed inset-0 z-200" onClick={() => setShowThemePicker(false)} />
           <div
-            className="fixed z-201 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-3 anim-pop-in"
+            className="fixed z-201 bg-(--card-bg) dark:bg-gray-900 rounded-2xl shadow-2xl border border-violet-200/70 dark:border-violet-800/60 p-3 anim-pop-in"
             style={{ top: themePickerPos.top, left: themePickerPos.left, width: 244 }}
           >
             <div className="flex gap-1.5 mb-3">
               <button onClick={() => { setIsDark(false); applyColor(colorId, false); }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all ${!isDark ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm" : "text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/60"}`}>
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all ${!isDark ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm" : "text-gray-400 dark:text-gray-500 hover:bg-violet-50/60 dark:hover:bg-violet-900/20/60"}`}>
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" strokeWidth="2" /><path strokeLinecap="round" strokeWidth="2" d="M12 2v2m0 16v2M2 12h2m16 0h2m-3.5-7.5-1.5 1.5m-9 9-1.5 1.5m0-12 1.5 1.5m9 9 1.5 1.5" /></svg>
                 Light
               </button>
               <button onClick={() => { setIsDark(true); applyColor(colorId, true); }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all ${isDark ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm" : "text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/60"}`}>
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all ${isDark ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm" : "text-gray-400 dark:text-gray-500 hover:bg-violet-50/60 dark:hover:bg-violet-900/20/60"}`}>
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
                 Dark
               </button>
             </div>
-            <div className="border-t border-gray-100 dark:border-gray-800 pt-3">
+            <div className="border-t border-violet-100/70 dark:border-violet-900/30 pt-3">
               <div className="grid grid-cols-4 gap-1">
                 {ACCENT_COLORS.map((c) => {
                   const active = colorId === c.id;
                   return (
                     <button key={c.id} title={c.name} onClick={() => { setColorId(c.id); applyColor(c.id, isDark); }}
-                      className={`flex flex-col items-center gap-1.5 py-2 rounded-xl transition-all ${active ? "bg-gray-100 dark:bg-gray-800" : "hover:bg-gray-50 dark:hover:bg-gray-800/60"}`}>
+                      className={`flex flex-col items-center gap-1.5 py-2 rounded-xl transition-all ${active ? "bg-gray-100 dark:bg-gray-800" : "hover:bg-violet-50/60 dark:hover:bg-violet-900/20/60"}`}>
                       <span className="w-6 h-6 rounded-full flex items-center justify-center shadow-sm" style={{ background: c.hex, outline: active ? `2px solid ${c.hex}` : "none", outlineOffset: "2px" }}>
                         {active && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                       </span>

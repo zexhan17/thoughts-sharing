@@ -70,7 +70,7 @@ export function PinDialog({ mode, externalError, onConfirm, onCancel, onChangePi
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 w-80 mx-4">
+      <div className="bg-(--card-bg) dark:bg-gray-900 rounded-2xl shadow-2xl p-6 w-80 mx-4 border border-violet-200/70 dark:border-violet-800/60">
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-5">
@@ -101,7 +101,7 @@ export function PinDialog({ mode, externalError, onConfirm, onCancel, onChangePi
                 className={`w-4 h-4 rounded-full transition-all duration-100 ${
                   currentPin.length > i
                     ? "bg-violet-600 dark:bg-violet-400 scale-110"
-                    : "bg-gray-200 dark:bg-gray-700"
+                    : "bg-violet-100 dark:bg-violet-900/40"
                 }`}
               />
             ))}
@@ -132,7 +132,7 @@ export function PinDialog({ mode, externalError, onConfirm, onCancel, onChangePi
         <div className="flex gap-2">
           <button
             onClick={onCancel}
-            className="flex-1 px-4 py-2.5 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-colors"
+            className="flex-1 px-4 py-2.5 text-sm text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/30 hover:bg-violet-100 dark:hover:bg-violet-900/50 rounded-xl transition-colors"
           >
             Cancel
           </button>

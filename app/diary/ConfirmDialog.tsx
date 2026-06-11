@@ -36,14 +36,14 @@ export function ConfirmDialog({ message, detail, subtext, confirmLabel = "Delete
       onClick={onCancel}
     >
       <div
-        className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 mx-4 w-full max-w-xs border border-gray-100 dark:border-gray-800"
+        className="bg-(--card-bg) dark:bg-gray-900 rounded-2xl shadow-2xl p-6 mx-4 w-full max-w-xs border border-violet-200/70 dark:border-violet-800/60"
         onClick={(e) => e.stopPropagation()}
       >
         <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">
           {message}
         </p>
         {detail && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2 mb-3 line-clamp-2 italic">
+          <p className="text-xs text-gray-500 dark:text-gray-400 bg-violet-50/60 dark:bg-violet-900/20 rounded-lg px-3 py-2 mb-3 line-clamp-2 italic">
             "{detail}"
           </p>
         )}
@@ -68,7 +68,7 @@ export function ConfirmDialog({ message, detail, subtext, confirmLabel = "Delete
           <button
             autoFocus
             onClick={onCancel}
-            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-violet-50 dark:hover:bg-violet-900/20 rounded-lg transition-colors"
           >
             Cancel
           </button>

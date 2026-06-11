@@ -82,12 +82,12 @@ export function SearchDialog({ nodes, lockedRootIds, onSelect, onClose, scopeRoo
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+        className="w-full max-w-lg bg-(--card-bg) dark:bg-gray-900 rounded-2xl shadow-2xl border border-violet-200/70 dark:border-violet-800/60 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-gray-800">
-          <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-violet-100/70 dark:border-violet-900/30">
+          <svg className="w-4 h-4 text-violet-400 dark:text-violet-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -131,8 +131,8 @@ export function SearchDialog({ nodes, lockedRootIds, onSelect, onClose, scopeRoo
                   ref={isActive ? activeRef : undefined}
                   onClick={() => onSelect(r.nodeId, r.rootId)}
                   onMouseEnter={() => setActiveIdx(idx)}
-                  className={`w-full text-left px-4 py-3 border-b border-gray-50 dark:border-gray-800/60 last:border-0 transition-colors ${
-                    isActive ? "bg-violet-50 dark:bg-violet-900/30" : "hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                  className={`w-full text-left px-4 py-3 border-b border-violet-100/50 dark:border-violet-900/20 last:border-0 transition-colors ${
+                    isActive ? "bg-violet-50 dark:bg-violet-900/30" : "hover:bg-violet-50/60 dark:hover:bg-violet-900/20"
                   }`}
                 >
                   <div className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
@@ -157,7 +157,7 @@ export function SearchDialog({ nodes, lockedRootIds, onSelect, onClose, scopeRoo
         </div>
 
         {results.length > 0 && (
-          <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between text-xs text-gray-400 dark:text-gray-500">
+          <div className="px-4 py-2 border-t border-violet-100/70 dark:border-violet-900/30 flex items-center justify-between text-xs text-gray-400 dark:text-gray-500">
             <span>{results.length} result{results.length !== 1 ? "s" : ""}</span>
             <span className="hidden sm:inline">↑↓ navigate · Enter select · Esc close</span>
           </div>

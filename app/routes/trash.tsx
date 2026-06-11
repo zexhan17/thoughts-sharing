@@ -66,7 +66,7 @@ export default function TrashPage() {
   return (
     <div className="min-h-dvh bg-gray-50 dark:bg-[#0a0a0b]">
       {/* ── Header ── */}
-      <header className="sticky top-0 z-20 bg-gray-50/90 dark:bg-[#0a0a0b]/90 backdrop-blur-md border-b border-gray-200/70 dark:border-gray-800/70">
+      <header className="sticky top-0 z-20 bg-gray-50/90 dark:bg-[#0a0a0b]/90 backdrop-blur-md border-b border-violet-200/50 dark:border-violet-900/40">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center gap-3">
           <button
             onClick={() => navigate("/")}
@@ -78,7 +78,7 @@ export default function TrashPage() {
 
           </button>
 
-          <span className="w-px h-4 bg-gray-200 dark:bg-gray-700 shrink-0" />
+          <span className="w-px h-4 bg-violet-200/80 dark:bg-violet-800/50 shrink-0" />
 
           <h1 className="flex-1 font-semibold text-[15px] text-gray-900 dark:text-gray-50">Trash</h1>
 
@@ -116,7 +116,7 @@ export default function TrashPage() {
               {entries.map((entry) => (
                 <div
                   key={entry.id}
-                  className="flex items-center gap-4 bg-white dark:bg-gray-900 border border-gray-200/80 dark:border-gray-800 rounded-2xl px-4 py-3.5"
+                  className="flex items-center gap-4 bg-(--card-bg) dark:bg-gray-900 border border-violet-200/60 dark:border-violet-900/40 rounded-2xl px-4 py-3.5"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">

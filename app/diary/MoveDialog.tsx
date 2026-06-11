@@ -79,7 +79,7 @@ export function MoveDialog({ nodeId, nodes, onMove, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+        className="w-full max-w-md bg-(--card-bg) dark:bg-gray-900 rounded-2xl shadow-2xl border border-violet-200/70 dark:border-violet-800/60 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Input */}
