@@ -31,6 +31,13 @@ export function PinDialog({ mode, externalError, onConfirm, onCancel, onChangePi
     return () => clearTimeout(t);
   }, [step]);
 
+  useEffect(() => {
+    if (externalError) {
+      setPin("");
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [externalError]);
+
   const displayedError = localError || externalError || "";
 
   function submitWithPin(value: string) {

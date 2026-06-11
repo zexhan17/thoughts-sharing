@@ -376,9 +376,10 @@ export default function Home() {
     });
   }
 
-  function handleSearchSelect(_nodeId: string, rootId: string) {
+  function handleSearchSelect(nodeId: string, rootId: string) {
     setShowSearch(false);
-    navigate(`/thought/${rootId}`);
+    const target = nodeId !== rootId ? `/thought/${rootId}?node=${nodeId}` : `/thought/${rootId}`;
+    navigate(target);
   }
 
   function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {

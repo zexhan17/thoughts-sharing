@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useNodes } from "../diary/useNodes";
 import { NoteTree, firstLine } from "../diary/NoteTree";
 import { PinDialog } from "../diary/PinDialog";
@@ -27,6 +27,7 @@ async function hashGlobalPin(pin: string): Promise<string> {
 export default function ThoughtDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
     nodes,
     hydrated,
@@ -78,7 +79,14 @@ export default function ThoughtDetail() {
   const [expandSignal, setExpandSignal] = useState(0);
   const [hideSignal, setHideSignal] = useState(0);
   const [revealSignal, setRevealSignal] = useState(0);
-  const [scrollToId, setScrollToId] = useState<string | null>(null);
+  const [scrollToId, setScrollToId] = useState<string | null>(() => searchParams.get("node"));
+
+  // Clean up ?node= from URL after reading it on mount
+  useEffect(() => {
+    if (searchParams.get("node")) {
+      navigate(`/thought/${id}`, { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Mode toggles ──
   const [dragMode, setDragMode] = useState(false);
@@ -325,6 +333,13 @@ export default function ThoughtDetail() {
                   </button>
                 )}
 
+                {nodeSelectionMode && (
+                  <button onClick={() => { setNodeSelectionMode(false); setSelectedNodeIds(new Set()); }} title="Exit select mode"
+                    className="w-10 h-10 flex items-center justify-center rounded-lg text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors shrink-0">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                )}
+
                 <span className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1 self-center shrink-0" />
 
                 {/* Overflow menu */}
@@ -451,6 +466,7 @@ export default function ThoughtDetail() {
           lockedRootIds={new Set()}
           onSelect={handleSearchSelect}
           onClose={() => setShowSearch(false)}
+          scopeRootId={rootId}
         />
       )}
 

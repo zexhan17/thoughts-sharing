@@ -16,6 +16,7 @@ interface Props {
   lockedRootIds: Set<string>;
   onSelect: (nodeId: string, rootId: string) => void;
   onClose: () => void;
+  scopeRootId?: string;
 }
 
 function findRoot(nodeId: string, nodes: NodesMap): string {
@@ -35,7 +36,7 @@ function getPreview(content: string, matchStart: number, matchLen: number) {
   };
 }
 
-export function SearchDialog({ nodes, lockedRootIds, onSelect, onClose }: Props) {
+export function SearchDialog({ nodes, lockedRootIds, onSelect, onClose, scopeRootId }: Props) {
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,6 +52,7 @@ export function SearchDialog({ nodes, lockedRootIds, onSelect, onClose }: Props)
     const out: SearchResult[] = [];
     for (const node of Object.values(nodes)) {
       const rootId = findRoot(node.id, nodes);
+      if (scopeRootId && rootId !== scopeRootId) continue;
       if (lockedRootIds.has(rootId)) continue;
       const idx = node.content.toLowerCase().indexOf(q);
       if (idx === -1) continue;
@@ -94,7 +96,7 @@ export function SearchDialog({ nodes, lockedRootIds, onSelect, onClose }: Props)
             value={query}
             onChange={(e) => { setQuery(e.target.value); setActiveIdx(0); }}
             onKeyDown={handleKeyDown}
-            placeholder="Search across all nodes…"
+            placeholder={scopeRootId ? "Search in this thought…" : "Search across all nodes…"}
             className="flex-1 bg-transparent text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
           />
           {query && (
@@ -113,7 +115,7 @@ export function SearchDialog({ nodes, lockedRootIds, onSelect, onClose }: Props)
         <div className="max-h-[55vh] overflow-y-auto">
           {!query.trim() ? (
             <p className="px-4 py-10 text-center text-sm text-gray-400 dark:text-gray-500">
-              Type to search across all nodes
+              {scopeRootId ? "Type to search in this thought" : "Type to search across all nodes"}
             </p>
           ) : results.length === 0 ? (
             <p className="px-4 py-10 text-center text-sm text-gray-400 dark:text-gray-500">
