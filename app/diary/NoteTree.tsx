@@ -385,6 +385,7 @@ function NoteNode({
                 if (selectable) { e.stopPropagation(); selectToggle(node.id); return; }
                 if (isHidden && !isDirectlyHidden) return;
                 if (window.innerWidth < 640) {
+                  if (isDirectlyHidden) { toggleHidden(node.id); return; }
                   const rect = e.currentTarget.getBoundingClientRect();
                   const menuW = 160;
                   const left = Math.max(4, Math.min(rect.left, window.innerWidth - menuW - 4));
