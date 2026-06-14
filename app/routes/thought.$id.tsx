@@ -143,6 +143,17 @@ export default function ThoughtDetail() {
   }, []);
 
   useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden" && globalLockHash) {
+        setGlobalUnlocked(false);
+        sessionStorage.removeItem("diary-vault-unlocked");
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [globalLockHash]);
+
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === "k") { e.preventDefault(); setShowSearch((s) => !s); }
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); }

@@ -123,6 +123,7 @@ export default function Home() {
   const [vaultDialog, setVaultDialog] = useState<"unlock" | "set" | "change-verify" | "change-new" | null>(null);
   const [vaultError, setVaultError] = useState("");
   const [showVaultMenu, setShowVaultMenu] = useState(false);
+  const [showVaultResetConfirm, setShowVaultResetConfirm] = useState(false);
 
   const [colorPickerRootId, setColorPickerRootId] = useState<string | null>(null);
   const [colorPickerPos, setColorPickerPos] = useState({ top: 0, left: 0 });
@@ -161,6 +162,17 @@ export default function Home() {
     try { const r = localStorage.getItem("diary-root-order"); if (r) setRootOrder(JSON.parse(r)); } catch { }
     try { const r = localStorage.getItem(TRASH_KEY); if (r) setTrashCount(JSON.parse(r).length); } catch { }
   }, []);
+
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden" && globalLockHash) {
+        setGlobalUnlocked(false);
+        sessionStorage.removeItem("diary-vault-unlocked");
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [globalLockHash]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -376,6 +388,17 @@ export default function Home() {
     });
   }
 
+  function handleVaultReset() {
+    localStorage.removeItem(GLOBAL_LOCK_KEY);
+    localStorage.removeItem(LOCKED_IDS_KEY);
+    sessionStorage.removeItem("diary-vault-unlocked");
+    setGlobalLockHash(null);
+    setGlobalUnlocked(true);
+    setLockedIds(new Set());
+    setShowVaultResetConfirm(false);
+    showToast("Vault reset — all chats are now accessible");
+  }
+
   function handleSearchSelect(nodeId: string, rootId: string) {
     setShowSearch(false);
     const target = nodeId !== rootId ? `/thought/${rootId}?node=${nodeId}` : `/thought/${rootId}`;
@@ -517,6 +540,11 @@ export default function Home() {
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-violet-50/60 dark:hover:bg-violet-900/20 transition-colors">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                         Change PIN
+                      </button>
+                      <button onClick={() => { setShowVaultMenu(false); setShowVaultResetConfirm(true); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:bg-red-50/60 dark:hover:bg-red-900/20 transition-colors">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        Reset vault
                       </button>
                     </div>
                   </>
@@ -871,6 +899,15 @@ export default function Home() {
           message={`Export ${selectedIds.size} thought${selectedIds.size !== 1 ? "s" : ""} as a JSON backup file?`}
           onConfirm={() => { setShowExportConfirm(false); handleExportSelected(); }}
           onCancel={() => setShowExportConfirm(false)}
+        />
+      )}
+      {showVaultResetConfirm && (
+        <ConfirmDialog
+          message="Reset the vault?"
+          subtext="All locked chats will become accessible and the vault PIN will be removed."
+          confirmLabel="Reset"
+          onConfirm={handleVaultReset}
+          onCancel={() => setShowVaultResetConfirm(false)}
         />
       )}
 
